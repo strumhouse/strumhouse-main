@@ -1,25 +1,25 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Mail, Phone, MapPin, Clock } from 'lucide-react';
+import { Mail, Phone, MapPin, Clock, Facebook, Instagram, ExternalLink } from 'lucide-react';
 
 const Contact: React.FC = () => {
   const contactInfo = [
     {
       icon: Phone,
       title: 'Phone',
-      details: ['+91 98765 43210', '+91 98765 43211'],
+      details: ['+91 8882382545'],
       color: 'text-green-500'
     },
     {
       icon: Mail,
       title: 'Email',
-      details: ['info@strumhouse.com', 'bookings@strumhouse.com'],
+      details: ['contact.strumhouse@gmail.com'],
       color: 'text-yellow-500'
     },
     {
       icon: MapPin,
       title: 'Address',
-      details: ['123 Music Street, Bandra West', 'Mumbai, Maharashtra 400050'],
+      details: ['G-19 A, basement, Main Rd, Block G, Kalkaji', 'Delhi, New Delhi, Delhi 110019'],
       color: 'text-blue-500'
     },
     {
@@ -27,6 +27,21 @@ const Contact: React.FC = () => {
       title: 'Hours',
       details: ['Mon-Sat: 9:00 AM - 10:00 PM', 'Sunday: 10:00 AM - 8:00 PM'],
       color: 'text-purple-500'
+    }
+  ];
+
+  const socialLinks = [
+    {
+      icon: Facebook,
+      title: 'Facebook',
+      url: 'https://www.facebook.com/Strumhousejampad',
+      color: 'text-blue-500'
+    },
+    {
+      icon: Instagram,
+      title: 'Instagram',
+      url: 'https://www.instagram.com/strumhouse_jampad/',
+      color: 'text-pink-500'
     }
   ];
 
@@ -80,6 +95,34 @@ const Contact: React.FC = () => {
                 </motion.div>
               ))}
             </div>
+
+            {/* Social Links */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.4 }}
+              className="mt-12"
+            >
+              <h3 className="text-2xl font-bold text-green-500 mb-6 text-center">Follow Us</h3>
+              <div className="flex justify-center space-x-6">
+                {socialLinks.map((social, index) => (
+                  <motion.a
+                    key={social.title}
+                    href={social.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5, delay: 0.5 + index * 0.1 }}
+                    className="flex items-center space-x-2 bg-gray-900 px-6 py-3 rounded-lg border border-gray-800 hover:bg-gray-800 transition-colors"
+                  >
+                    <social.icon className={`h-5 w-5 ${social.color}`} />
+                    <span className="text-white">{social.title}</span>
+                    <ExternalLink className="h-4 w-4 text-gray-400" />
+                  </motion.a>
+                ))}
+              </div>
+            </motion.div>
           </motion.div>
         </div>
       </section>
@@ -95,17 +138,34 @@ const Contact: React.FC = () => {
             className="text-center mb-12"
           >
             <h2 className="text-3xl font-bold text-green-500 mb-4">Find Us</h2>
-            <p className="text-gray-400">Visit our studio in the heart of Mumbai's music scene</p>
+            <p className="text-gray-400">Visit our studio in Kalkaji, Delhi</p>
           </motion.div>
 
           <div className="bg-gray-800 rounded-xl overflow-hidden">
-            <div className="aspect-video bg-gray-700 flex items-center justify-center">
-              <div className="text-center">
-                <MapPin className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                <p className="text-gray-400">Interactive map will be embedded here</p>
-                <p className="text-sm text-gray-500 mt-2">123 Music Street, Bandra West, Mumbai</p>
-              </div>
-            </div>
+            <iframe
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3504.5!2d77.2514!3d28.5275!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMjjCsDMxJzM5LjAiTiA3N8KwMTUnMDUuMCJF!5e0!3m2!1sen!2sin!4v1234567890"
+              width="100%"
+              height="450"
+              style={{ border: 0 }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              title="StrumHouse Location"
+              className="w-full"
+            ></iframe>
+          </div>
+          
+          <div className="mt-6 text-center">
+            <a
+              href="https://maps.app.goo.gl/waas2Hf4QjUtqTx39"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition-colors"
+            >
+              <MapPin className="h-5 w-5" />
+              <span>Open in Google Maps</span>
+              <ExternalLink className="h-4 w-4" />
+            </a>
           </div>
         </div>
       </section>
