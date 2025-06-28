@@ -1,9 +1,24 @@
 import React from 'react';
-import { Music, MapPin, Phone, Mail, Instagram, Facebook, Youtube } from 'lucide-react';
+import { Music, MapPin, Phone, Mail, Instagram, Facebook, Clock, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import logo from '../../assets/logo.png';
 
 const Footer: React.FC = () => {
+  const socialLinks = [
+    {
+      icon: Facebook,
+      title: 'Facebook',
+      url: 'https://www.facebook.com/Strumhousejampad',
+      color: 'text-blue-500'
+    },
+    {
+      icon: Instagram,
+      title: 'Instagram',
+      url: 'https://www.instagram.com/strumhouse_jampad/',
+      color: 'text-pink-500'
+    }
+  ];
+
   return (
     <footer className="bg-black text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -19,15 +34,18 @@ const Footer: React.FC = () => {
               space for jamming, recording, and rehearsals.
             </p>
             <div className="flex space-x-4">
-              <a href="#" className="text-gray-400 hover:text-yellow-500 transition-colors">
-                <Instagram className="h-5 w-5" />
-              </a>
-              <a href="#" className="text-gray-400 hover:text-yellow-500 transition-colors">
-                <Facebook className="h-5 w-5" />
-              </a>
-              <a href="#" className="text-gray-400 hover:text-yellow-500 transition-colors">
-                <Youtube className="h-5 w-5" />
-              </a>
+              {socialLinks.map((social) => (
+                <a 
+                  key={social.title}
+                  href={social.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-yellow-500 transition-colors"
+                  title={social.title}
+                >
+                  <social.icon className="h-5 w-5" />
+                </a>
+              ))}
             </div>
           </div>
 
@@ -64,17 +82,25 @@ const Footer: React.FC = () => {
             <div className="space-y-3">
               <div className="flex items-start space-x-3">
                 <MapPin className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
-                <span className="text-gray-400 text-sm">
-                  Kalkaji, New Delhi, India
-                </span>
+                <div className="text-gray-400 text-sm">
+                  <div>G-19 A, basement, Main Rd, Block G, Kalkaji</div>
+                  <div>Delhi, New Delhi, Delhi 110019</div>
+                </div>
               </div>
               <div className="flex items-center space-x-3">
                 <Phone className="h-5 w-5 text-yellow-500 flex-shrink-0" />
-                <span className="text-gray-400 text-sm">+91 9876543210</span>
+                <span className="text-gray-400 text-sm">+91 8882382545</span>
               </div>
               <div className="flex items-center space-x-3">
                 <Mail className="h-5 w-5 text-yellow-500 flex-shrink-0" />
                 <span className="text-gray-400 text-sm">contact.strumhouse@gmail.com</span>
+              </div>
+              <div className="flex items-start space-x-3">
+                <Clock className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                <div className="text-gray-400 text-sm">
+                  <div>Mon-Sat: 9:00 AM - 10:00 PM</div>
+                  <div>Sunday: 10:00 AM - 8:00 PM</div>
+                </div>
               </div>
             </div>
           </div>
