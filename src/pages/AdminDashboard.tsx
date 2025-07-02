@@ -86,7 +86,7 @@ const AdminDashboard: React.FC = () => {
   });
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [editingBooking, setEditingBooking] = useState<any | null>(null);
-  const [bookingForm, setBookingForm] = useState<{ status: 'pending' | 'confirmed' | 'cancelled'; notes: string }>({ status: 'pending', notes: '' });
+  const [bookingForm, setBookingForm] = useState<{ status: 'pending' | 'confirmed' | 'cancelled'; notes: string }>({ status: 'confirmed', notes: '' });
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
