@@ -330,14 +330,7 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
       </div>
 
       {/* Terms */}
-      <div className="mt-6 text-center">
-        <p className="text-xs text-gray-500">
-          By proceeding, you agree to our{' '}
-          <a href="#" className="text-secondary hover:underline">Terms of Service</a>
-          {' '}and{' '}
-          <a href="#" className="text-secondary hover:underline">Privacy Policy</a>
-        </p>
-      </div>
+      {/* The checkbox above replaces this paragraph, so this can be removed or left as extra info if desired. */}
     </motion.div>
   );
 };
