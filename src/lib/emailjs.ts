@@ -21,7 +21,6 @@ export const emailJSService = {
   async sendBookingNotification(bookingData: BookingEmailData): Promise<void> {
     try {
       const templateParams = {
-        to_email: 'contact.strumhouse@gmail.com',
         booking_id: bookingData.bookingId,
         customer_name: bookingData.customerName,
         customer_email: bookingData.customerEmail,
@@ -40,7 +39,7 @@ export const emailJSService = {
 
       await emailjs.send(
         'service_j0gfkjo', // Replace with your EmailJS service ID
-        'template_01oh24m', // Replace with your EmailJS template ID
+        'template_bg0m3tw', // Replace with your EmailJS template ID
         templateParams,
         'j8NhvtgzIf0RXrB5U' // Replace with your EmailJS public key
       );
