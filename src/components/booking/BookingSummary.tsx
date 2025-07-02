@@ -170,7 +170,7 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
         add_ons: selectedAddOns as any,
         total_amount: calculateTotalCost(),
         advance_amount: calculateAdvanceAmount(),
-        status: 'confirmed' as 'confirmed',
+        status: 'pending' as 'pending',
         payment_status: 'pending' as 'pending',
         notes: customerDetails.specialRequirements || null,
         google_calendar_event_id: null

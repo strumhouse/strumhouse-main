@@ -234,6 +234,24 @@ export const paymentService = {
     }
   },
 
+  // Update booking status
+  async updateBookingStatus(bookingId: string, status: 'pending' | 'confirmed' | 'cancelled'): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ 
+          status: status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', bookingId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating booking status:', error);
+      // Don't throw error for development
+    }
+  },
+
   // Get payment details by booking ID
   async getPaymentByBookingId(bookingId: string): Promise<PaymentDetails | null> {
     try {

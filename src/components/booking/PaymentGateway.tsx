@@ -71,6 +71,9 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
       // Update booking payment status
       await paymentService.updateBookingPaymentStatus(bookingId, 'paid');
 
+      // Update booking status to confirmed after successful payment
+      await paymentService.updateBookingStatus(bookingId, 'confirmed');
+
       setPaymentStatus('success');
       
       // Call success callback after a short delay
