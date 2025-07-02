@@ -29,6 +29,7 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
   const [order, setOrder] = useState<PaymentOrder | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
+  const [agreed, setAgreed] = useState(false);
 
   useEffect(() => {
     createPaymentOrder();
@@ -286,9 +287,25 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
 
       {/* Action Buttons */}
       <div className="space-y-3">
+        {/* Terms Checkbox */}
+        <div className="flex items-center mb-2">
+          <input
+            type="checkbox"
+            id="terms-agree"
+            checked={agreed}
+            onChange={e => setAgreed(e.target.checked)}
+            className="mr-2 accent-yellow-500"
+          />
+          <label htmlFor="terms-agree" className="text-xs text-gray-300 select-none">
+            I agree to the{' '}
+            <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-secondary hover:underline">Terms of Service</a>
+            {' '}and{' '}
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-secondary hover:underline">Privacy Policy</a>
+          </label>
+        </div>
         <button
           onClick={initiatePayment}
-          disabled={!order || paymentStatus === 'processing'}
+          disabled={!order || paymentStatus === 'processing' || !agreed}
           className="w-full bg-secondary hover:bg-secondary/80 disabled:bg-gray-600 text-primary font-bold py-4 px-6 rounded-lg transition-colors disabled:cursor-not-allowed flex items-center justify-center"
         >
           {paymentStatus === 'processing' ? (
@@ -303,7 +320,6 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
             </>
           )}
         </button>
-        
         <button
           onClick={onCancel}
           disabled={paymentStatus === 'processing'}
