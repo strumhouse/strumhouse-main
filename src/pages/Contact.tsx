@@ -25,7 +25,7 @@ const Contact: React.FC = () => {
     {
       icon: Clock,
       title: 'Hours',
-      details: ['Mon-Sat: 9:00 AM - 10:00 PM', 'Sunday: 10:00 AM - 8:00 PM'],
+      details: ['Monday to Sunday: 9:00 AM - 10:00 PM'],
       color: 'text-purple-500'
     }
   ];

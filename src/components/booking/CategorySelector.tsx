@@ -128,8 +128,8 @@ const CategorySelector: React.FC<CategorySelectorProps> = ({ selectedCategory, o
       <div className="mt-8 text-center">
         <p className="text-sm text-gray-400 mb-6">
           Need help choosing? Contact us at{' '}
-          <a href="tel:+919876543210" className="text-secondary hover:underline">
-            +91 98765 43210
+          <a href="tel:+918882382545" className="text-secondary hover:underline">
+            +91 8882382545
           </a>
         </p>
         
