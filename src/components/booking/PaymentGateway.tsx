@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { CreditCard, Lock, CheckCircle, AlertCircle, Loader2, Shield } from 'lucide-react';
 import { paymentService, PaymentOrder, PaymentResponse, formatAmount } from '../../lib/payment';
+import { emailJSService } from '../../lib/emailjs';
 import LoadingSpinner from '../UI/LoadingSpinner';
 
 interface PaymentGatewayProps {
@@ -73,6 +74,32 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
 
       // Update booking status to confirmed after successful payment
       await paymentService.updateBookingStatus(bookingId, 'confirmed');
+
+      // Send email notification to admin
+      try {
+        const bookingData = await paymentService.getBookingDetails(bookingId);
+        if (bookingData) {
+          await emailJSService.sendBookingNotification({
+            bookingId: bookingData.id,
+            customerName: bookingData.customer_name,
+            customerEmail: bookingData.customer_email,
+            customerPhone: bookingData.customer_phone,
+            serviceName: bookingData.service_name || 'Unknown Service',
+            date: bookingData.date,
+            startTime: bookingData.start_time,
+            endTime: bookingData.end_time,
+            duration: bookingData.duration,
+            participants: bookingData.participants,
+            totalAmount: bookingData.total_amount,
+            advanceAmount: bookingData.advance_amount,
+            addOns: bookingData.add_ons || {},
+            paymentId: response.razorpay_payment_id
+          });
+        }
+      } catch (emailError) {
+        console.error('Error sending email notification:', emailError);
+        // Don't fail the payment process if email fails
+      }
 
       setPaymentStatus('success');
       

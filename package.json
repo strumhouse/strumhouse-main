@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@emailjs/browser": "^4.4.1",
+    "@sendgrid/mail": "^8.1.5",
     "@supabase/supabase-js": "^2.50.0",
     "date-fns": "^3.6.0",
     "framer-motion": "^11.0.6",

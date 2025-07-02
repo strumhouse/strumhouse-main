@@ -234,6 +234,23 @@ export const paymentService = {
     }
   },
 
+  // Get payment details by booking ID
+  async getPaymentByBookingId(bookingId: string): Promise<PaymentDetails | null> {
+    try {
+      const { data, error } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('booking_id', bookingId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error getting payment details:', error);
+      return null;
+    }
+  },
+
   // Update booking status
   async updateBookingStatus(bookingId: string, status: 'pending' | 'confirmed' | 'cancelled'): Promise<void> {
     try {
@@ -252,19 +269,33 @@ export const paymentService = {
     }
   },
 
-  // Get payment details by booking ID
-  async getPaymentByBookingId(bookingId: string): Promise<PaymentDetails | null> {
+  // Get booking details by booking ID
+  async getBookingDetails(bookingId: string): Promise<any | null> {
     try {
       const { data, error } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('booking_id', bookingId)
+        .from('bookings')
+        .select(`
+          *,
+          services(name),
+          categories(name)
+        `)
+        .eq('id', bookingId)
         .single();
 
       if (error) throw error;
+      
+      // Transform the data to include service name
+      if (data) {
+        return {
+          ...data,
+          service_name: data.services?.name || 'Unknown Service',
+          category_name: data.categories?.name || 'Unknown Category'
+        };
+      }
+      
       return data;
     } catch (error) {
-      console.error('Error getting payment details:', error);
+      console.error('Error getting booking details:', error);
       return null;
     }
   }
