@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Calendar, Clock, AlertCircle, Grid, List } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, AlertCircle, List } from 'lucide-react';
 import { blockedSlotService, bookingSlotService } from '../../lib/database';
 import { generateTimeSlots, getAvailableDates, findServiceConfig } from '../../utils/timeSlots';
 import LoadingSpinner from '../UI/LoadingSpinner';
@@ -39,12 +39,7 @@ const DateTimeSelector: React.FC<DateTimeSelectorProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDayOfWeek, setSelectedDayOfWeek] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
-  const [localSelectedSlots, setLocalSelectedSlots] = useState<{ startTime: string; endTime: string }[]>(selectedSlots || []);
-
-  useEffect(() => {
-    setLocalSelectedSlots(selectedSlots || []);
-  }, [selectedSlots]);
+  const [localSelectedSlots, setLocalSelectedSlots] = useState<{ startTime: string; endTime: string }[]>(selectedSlots);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -184,134 +179,107 @@ const DateTimeSelector: React.FC<DateTimeSelectorProps> = ({
           </div>
         </div>
       )}
-      {/* View Mode Toggle */}
-      <div className="flex items-center mb-6">
-        <button
-          onClick={() => setViewMode('list')}
-          className={`flex items-center px-4 py-2 rounded-l-lg transition-colors ${
-            viewMode === 'list' 
-              ? 'bg-secondary text-primary font-semibold' 
-              : 'bg-gray-800 text-gray-400 hover:text-white'
-          }`}
-        >
-          <List className="w-4 h-4 mr-2" />
-          List View
-        </button>
-        <button
-          onClick={() => setViewMode('calendar')}
-          className={`flex items-center px-4 py-2 rounded-r-lg transition-colors ${
-            viewMode === 'calendar' 
-              ? 'bg-secondary text-primary font-semibold' 
-              : 'bg-gray-800 text-gray-400 hover:text-white'
-          }`}
-        >
-          <Grid className="w-4 h-4 mr-2" />
-          Calendar View
-        </button>
-      </div>
       {/* List View */}
-      {viewMode === 'list' && (
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* Date Selection */}
-          <div>
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-              <Calendar className="w-5 h-5 mr-2 text-secondary" />
-              Choose Date
-            </h3>
-            <div className="grid grid-cols-3 gap-3 max-h-96 overflow-y-auto">
-              {availableDates.map((date) => {
-                const isSelected = selectedDate && 
-                  date.toDateString() === selectedDate.toDateString();
-                const availableSlots = getAvailableTimeSlots(date);
-                const hasAvailableSlots = availableSlots.some(slot => slot.available);
+      <div className="grid md:grid-cols-2 gap-8">
+        {/* Date Selection */}
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+            <Calendar className="w-5 h-5 mr-2 text-secondary" />
+            Choose Date
+          </h3>
+          <div className="grid grid-cols-3 gap-3 max-h-96 overflow-y-auto">
+            {availableDates.map((date) => {
+              const isSelected = selectedDate && 
+                date.toDateString() === selectedDate.toDateString();
+              const availableSlots = getAvailableTimeSlots(date);
+              const hasAvailableSlots = availableSlots.some(slot => slot.available);
+              return (
+                <motion.button
+                  key={date.toISOString()}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleDateSelect(date)}
+                  disabled={!hasAvailableSlots}
+                  className={`p-3 rounded-lg border-2 transition-all ${
+                    isSelected
+                      ? 'border-secondary bg-secondary/10'
+                      : hasAvailableSlots
+                      ? 'border-gray-600 hover:border-secondary/50 bg-gray-800'
+                      : 'border-gray-700 bg-gray-800 opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  <div className="text-center">
+                    <div className="text-sm text-gray-400">
+                      {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                    </div>
+                    <div className="text-lg font-bold text-white">
+                      {date.getDate()}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {date.toLocaleDateString('en-US', { month: 'short' })}
+                    </div>
+                    {hasAvailableSlots && (
+                      <div className="text-xs text-secondary mt-1">
+                        {availableSlots.filter(slot => slot.available).length} slots
+                      </div>
+                    )}
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+        {/* Time Slot Selection */}
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+            <Clock className="w-5 h-5 mr-2 text-secondary" />
+            Choose Time Slots
+          </h3>
+          {selectedDate && selectedDayOfWeek ? (
+            <div className="space-y-3">
+              {getAvailableTimeSlots(selectedDate).map((slot) => {
+                const checked = localSelectedSlots.some(
+                  s => s.startTime === slot.startTime && s.endTime === slot.endTime
+                );
                 return (
-                  <motion.button
-                    key={date.toISOString()}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => handleDateSelect(date)}
-                    disabled={!hasAvailableSlots}
-                    className={`p-3 rounded-lg border-2 transition-all ${
-                      isSelected
+                  <label
+                    key={slot.id}
+                    className={`flex items-center p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                      checked
                         ? 'border-secondary bg-secondary/10'
-                        : hasAvailableSlots
-                        ? 'border-gray-600 hover:border-secondary/50 bg-gray-800'
-                        : 'border-gray-700 bg-gray-800 opacity-50 cursor-not-allowed'
+                        : !slot.available
+                        ? 'border-gray-700 bg-gray-800 opacity-50 cursor-not-allowed'
+                        : 'border-gray-600 hover:border-secondary/50 bg-gray-800'
                     }`}
                   >
-                    <div className="text-center">
-                      <div className="text-sm text-gray-400">
-                        {date.toLocaleDateString('en-US', { weekday: 'short' })}
-                      </div>
-                      <div className="text-lg font-bold text-white">
-                        {date.getDate()}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {date.toLocaleDateString('en-US', { month: 'short' })}
-                      </div>
-                      {hasAvailableSlots && (
-                        <div className="text-xs text-secondary mt-1">
-                          {availableSlots.filter(slot => slot.available).length} slots
-                        </div>
-                      )}
-                    </div>
-                  </motion.button>
+                    <input
+                      type="checkbox"
+                      className="mr-3 accent-secondary"
+                      checked={checked}
+                      disabled={!slot.available}
+                      onChange={() => handleSlotToggle(slot)}
+                    />
+                    <span className="text-lg font-semibold text-white">
+                      {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                    </span>
+                    {!slot.available && (
+                      <span className="ml-2 text-sm text-red-400 flex items-center">
+                        <AlertCircle className="w-4 h-4 mr-1" />
+                        {slot.isBooked ? 'Booked' : 'Unavailable'}
+                      </span>
+                    )}
+                  </label>
                 );
               })}
             </div>
-          </div>
-          {/* Time Slot Selection */}
-          <div>
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-              <Clock className="w-5 h-5 mr-2 text-secondary" />
-              Choose Time Slots
-            </h3>
-            {selectedDate && selectedDayOfWeek ? (
-              <div className="space-y-3">
-                {getAvailableTimeSlots(selectedDate).map((slot) => {
-                  const checked = localSelectedSlots.some(
-                    s => s.startTime === slot.startTime && s.endTime === slot.endTime
-                  );
-                  return (
-                    <label
-                      key={slot.id}
-                      className={`flex items-center p-3 rounded-lg border-2 transition-all cursor-pointer ${
-                        checked
-                          ? 'border-secondary bg-secondary/10'
-                          : !slot.available
-                          ? 'border-gray-700 bg-gray-800 opacity-50 cursor-not-allowed'
-                          : 'border-gray-600 hover:border-secondary/50 bg-gray-800'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        className="mr-3 accent-secondary"
-                        checked={checked}
-                        disabled={!slot.available}
-                        onChange={() => handleSlotToggle(slot)}
-                      />
-                      <span className="text-lg font-semibold text-white">
-                        {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
-                      </span>
-                      {!slot.available && (
-                        <span className="ml-2 text-sm text-red-400 flex items-center">
-                          <AlertCircle className="w-4 h-4 mr-1" />
-                          {slot.isBooked ? 'Booked' : 'Unavailable'}
-                        </span>
-                      )}
-                    </label>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <Clock className="w-12 h-12 text-gray-500 mx-auto mb-3" />
-                <p className="text-gray-400">Select a date to see available slots</p>
-              </div>
-            )}
-          </div>
+          ) : (
+            <div className="text-center py-8">
+              <Clock className="w-12 h-12 text-gray-500 mx-auto mb-3" />
+              <p className="text-gray-400">Select a date to see available slots</p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
       {/* Selected Slots Summary */}
       {selectedDate && localSelectedSlots.length > 0 && (
         <div className="mt-6 p-4 bg-secondary/10 border border-secondary rounded-lg">
