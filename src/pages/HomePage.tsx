@@ -2,6 +2,8 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Play, Star, Calendar, Music, Users, Award, Clock } from 'lucide-react';
+import recordingImg from '../assets/recording.jpeg';
+import jampadImg from '../assets/jampad.jpeg';
 
 const HomePage: React.FC = () => {
   const stats = [
@@ -41,7 +43,7 @@ const HomePage: React.FC = () => {
       description: 'Enjoy a fun jamming session at the best jampad in Delhi',
       price: 400,
       duration: 'per hour',
-      image: 'https://images.pexels.com/photos/164938/pexels-photo-164938.jpeg',
+      image: jampadImg,
       features: ['Professional Sound System', 'Drum Kit', 'Guitar Amps', 'Max 10 people']
     },
     {
@@ -50,7 +52,7 @@ const HomePage: React.FC = () => {
       description: 'Professional recording services with high-quality equipment',
       price: 1000,
       duration: 'per hour',
-      image: 'https://images.pexels.com/photos/1751731/pexels-photo-1751731.jpeg',
+      image: recordingImg,
       features: ['Raw Recording', 'Mixing & Mastering', 'Professional Mics', 'Max 6 people']
     }
   ];
