@@ -143,7 +143,7 @@ const Contact: React.FC = () => {
 
           <div className="bg-gray-800 rounded-xl overflow-hidden">
             <iframe
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3504.5!2d77.2514!3d28.5275!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMjjCsDMxJzM5LjAiTiA3N8KwMTUnMDUuMCJF!5e0!3m2!1sen!2sin!4v1234567890"
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3504.96298829633!2d77.25498177549746!3d28.540832175714964!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390ce38fafc9c5df%3A0x9c53778befd6d4f4!2sStrumHouse%20-%20Jam%20Pad%2C%20Recording%20Studio%2C%20Music%20Classes%20(Formerly%20Micky's%20Jampad)!5e0!3m2!1sen!2sin!4v1751494133942!5m2!1sen!2sin"
               width="100%"
               height="450"
               style={{ border: 0 }}
