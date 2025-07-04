@@ -1,9 +1,9 @@
 import { supabase } from './supabase';
 
 // For client-side use (public key only)
-const RAZORPAY_KEY_ID = import.meta.env.RAZORPAY_KEY_ID || 'rzp_test_YOUR_TEST_KEY';
+const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID;
 // Do NOT expose secret on client side
-const RAZORPAY_KEY_SECRET = import.meta.env.RAZORPAY_KEY_SECRET || 'YOUR_TEST_SECRET';
+
 
 export interface PaymentOrder {
   id: string;
@@ -132,7 +132,7 @@ export const paymentService = {
       } else {
         // Load Razorpay script dynamically
         const script = document.createElement('script');
-        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.src = 'https://.razorpay.com/v1/checkout.js';
         script.async = true;
         script.onload = () => {
           // @ts-ignore

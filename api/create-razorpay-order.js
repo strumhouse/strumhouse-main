@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   };
 
   const auth = Buffer.from(
-    process.env.RAZORPAY_KEY_ID + ':' + process.env.RAZORPAY_KEY_SECRET
+    process.env.VITE_RAZORPAY_KEY_ID + ':' + process.env.VITE_RAZORPAY_KEY_SECRET
   ).toString('base64');
 
   const response = await fetch('https://api.razorpay.com/v1/orders', {
