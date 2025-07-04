@@ -460,6 +460,13 @@ const AdminDashboard: React.FC = () => {
       toast.success('Booking updated');
       setShowBookingModal(false);
       fetchBookings();
+      
+      // If booking status changed to cancelled or pending, refresh the page to update time slot availability
+      if (bookingForm.status !== editingBooking.status && 
+          (bookingForm.status === 'cancelled' || bookingForm.status === 'pending' || editingBooking.status === 'cancelled' || editingBooking.status === 'pending')) {
+        // Show a message that time slots have been updated
+        toast.success('Time slot availability has been updated');
+      }
     } catch (err) {
       toast.error('Failed to update booking');
     } finally {
@@ -656,6 +663,21 @@ const AdminDashboard: React.FC = () => {
       fetchBlockedSlots();
     } catch (err) {
       setBlockSlotError('Failed to block slot');
+    } finally {
+      setBlockSlotLoading(false);
+    }
+  };
+
+  const handleUnblockSlot = async (slotId: string) => {
+    if (!window.confirm('Are you sure you want to unblock this time slot?')) return;
+    
+    setBlockSlotLoading(true);
+    try {
+      await blockedSlotService.delete(slotId);
+      toast.success('Slot unblocked successfully');
+      fetchBlockedSlots();
+    } catch (err) {
+      toast.error('Failed to unblock slot');
     } finally {
       setBlockSlotLoading(false);
     }
@@ -1312,18 +1334,28 @@ const AdminDashboard: React.FC = () => {
                         <th className="px-2 py-1 text-left">Start</th>
                         <th className="px-2 py-1 text-left">End</th>
                         <th className="px-2 py-1 text-left">Reason</th>
+                        <th className="px-2 py-1 text-left">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {blockedSlots.length === 0 ? (
-                        <tr><td colSpan={4} className="text-center py-2">No blocked slots</td></tr>
+                        <tr><td colSpan={5} className="text-center py-2">No blocked slots</td></tr>
                       ) : (
                         blockedSlots.map(slot => (
-                          <tr key={slot.id}>
+                          <tr key={slot.id} className="hover:bg-gray-800">
                             <td className="px-2 py-1">{slot.date}</td>
                             <td className="px-2 py-1">{slot.start_time}</td>
                             <td className="px-2 py-1">{slot.end_time}</td>
                             <td className="px-2 py-1">{slot.reason || '-'}</td>
+                            <td className="px-2 py-1">
+                              <button
+                                onClick={() => handleUnblockSlot(slot.id)}
+                                disabled={blockSlotLoading}
+                                className="bg-red-500 hover:bg-red-400 text-white text-xs px-2 py-1 rounded transition-colors disabled:opacity-50"
+                              >
+                                {blockSlotLoading ? 'Unblocking...' : 'Unblock'}
+                              </button>
+                            </td>
                           </tr>
                         ))
                       )}

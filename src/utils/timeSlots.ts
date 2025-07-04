@@ -203,11 +203,13 @@ export const generateTimeSlots = (
           blocked.end_time >= endTime
         );
         
-        // Check if slot is already booked
+        // Check if slot is already booked (only count confirmed bookings)
         const isBooked = existingBookings.some(bookingSlot => 
           bookingSlot.date === dateStr &&
           bookingSlot.start_time === startTime &&
-          bookingSlot.end_time === endTime
+          bookingSlot.end_time === endTime &&
+          bookingSlot.bookings && 
+          bookingSlot.bookings.status === 'confirmed'
         );
         
        
