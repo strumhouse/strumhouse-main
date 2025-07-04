@@ -132,7 +132,7 @@ export const paymentService = {
       } else {
         // Load Razorpay script dynamically
         const script = document.createElement('script');
-        script.src = 'https://.razorpay.com/v1/checkout.js';
+        script.src = 'https://razorpay.com/v1/checkout.js';
         script.async = true;
         script.onload = () => {
           // @ts-ignore
