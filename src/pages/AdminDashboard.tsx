@@ -18,12 +18,14 @@ import {
   serviceService, 
   categoryService, 
   userService,
-  addOnService
+  addOnService,
+  blockedSlotService
 } from '../lib/database';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/UI/LoadingSpinner';
 import Modal from '../components/UI/Modal';
 import { supabase } from '../lib/supabase';
+import { format } from 'date-fns';
 
 type AdminTab = 'overview' | 'bookings' | 'services' | 'addons' | 'categories' | 'users' | 'gallery' | 'settings';
 
@@ -49,16 +51,15 @@ const AdminDashboard: React.FC = () => {
   const [galleryLoading, setGalleryLoading] = useState(false);
   const [galleryError, setGalleryError] = useState<string | null>(null);
   const [galleryImageFile, setGalleryImageFile] = useState<File | null>(null);
-  const [] = useState(false);
-  const [] = useState<any | null>(null);
-  const [] = useState({
-    title: '',
-    description: '',
-    image_url: '',
-    category: 'gallery',
-    is_active: true,
-    sort_order: 0,
+  const [blockedSlots, setBlockedSlots] = useState<any[]>([]);
+  const [blockSlotForm, setBlockSlotForm] = useState({
+    date: '',
+    start_time: '',
+    end_time: '',
+    reason: ''
   });
+  const [blockSlotLoading, setBlockSlotLoading] = useState(false);
+  const [blockSlotError, setBlockSlotError] = useState<string | null>(null);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [editingService, setEditingService] = useState<any | null>(null);
   const [serviceForm, setServiceForm] = useState({
@@ -602,6 +603,61 @@ const AdminDashboard: React.FC = () => {
       toast.error('Failed to delete add-on');
     } finally {
       setAddOnLoading(false);
+    }
+  };
+
+  // Fetch blocked slots on mount
+  useEffect(() => {
+    if (!authLoading && user && user.role === 'admin') {
+      fetchBlockedSlots();
+    }
+  }, [authLoading, user]);
+
+  const fetchBlockedSlots = async () => {
+    try {
+      setBlockSlotLoading(true);
+      const today = new Date();
+      const end = new Date();
+      end.setDate(today.getDate() + 30);
+      const slots = await blockedSlotService.getByDateRange(
+        format(today, 'yyyy-MM-dd'),
+        format(end, 'yyyy-MM-dd')
+      );
+      setBlockedSlots(slots);
+    } catch (err) {
+      setBlockSlotError('Failed to load blocked slots');
+    } finally {
+      setBlockSlotLoading(false);
+    }
+  };
+
+  const handleBlockSlotFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setBlockSlotForm({ ...blockSlotForm, [e.target.name]: e.target.value });
+  };
+
+  const handleBlockSlotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!blockSlotForm.date || !blockSlotForm.start_time || !blockSlotForm.end_time) {
+      setBlockSlotError('Date, start time, and end time are required');
+      return;
+    }
+    setBlockSlotError(null);
+    setBlockSlotLoading(true);
+    try {
+      await blockedSlotService.create({
+        date: blockSlotForm.date,
+        start_time: blockSlotForm.start_time + ':00',
+        end_time: blockSlotForm.end_time + ':00',
+        reason: blockSlotForm.reason,
+        created_by: user.id
+      });
+      toast.success('Slot blocked successfully');
+      setBlockSlotForm({ date: '', start_time: '', end_time: '', reason: '' });
+      fetchBlockedSlots();
+    } catch (err) {
+      setBlockSlotError('Failed to block slot');
+    } finally {
+      setBlockSlotLoading(false);
     }
   };
 
@@ -1214,6 +1270,68 @@ const AdminDashboard: React.FC = () => {
               <h2 className="text-2xl font-bold text-white mb-4">Studio Settings</h2>
               <p className="text-gray-400">Settings interface coming soon...</p>
             </div>
+          )}
+
+          {/* Block Time Slot Section */}
+          {user && user.role === 'admin' && (
+            <section className="bg-gray-900 rounded-lg p-6 mt-8">
+              <h2 className="text-xl font-bold text-white mb-4">Block Time Slot</h2>
+              <form onSubmit={handleBlockSlotSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div>
+                  <label className="block text-gray-300 mb-1">Date</label>
+                  <input type="date" name="date" value={blockSlotForm.date} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" required />
+                </div>
+                <div>
+                  <label className="block text-gray-300 mb-1">Start Time</label>
+                  <input type="time" name="start_time" value={blockSlotForm.start_time} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" required />
+                </div>
+                <div>
+                  <label className="block text-gray-300 mb-1">End Time</label>
+                  <input type="time" name="end_time" value={blockSlotForm.end_time} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" required />
+                </div>
+                <div>
+                  <label className="block text-gray-300 mb-1">Reason (optional)</label>
+                  <input type="text" name="reason" value={blockSlotForm.reason} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" />
+                </div>
+                <div className="md:col-span-4">
+                  <button type="submit" className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-6 py-2 rounded-lg mt-2" disabled={blockSlotLoading}>
+                    {blockSlotLoading ? 'Blocking...' : 'Block Slot'}
+                  </button>
+                </div>
+                {blockSlotError && <div className="md:col-span-4 text-red-400 mt-2">{blockSlotError}</div>}
+              </form>
+              <h3 className="text-lg font-semibold text-white mb-2">Currently Blocked Slots (next 30 days)</h3>
+              {blockSlotLoading ? (
+                <LoadingSpinner />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm text-gray-300">
+                    <thead>
+                      <tr>
+                        <th className="px-2 py-1 text-left">Date</th>
+                        <th className="px-2 py-1 text-left">Start</th>
+                        <th className="px-2 py-1 text-left">End</th>
+                        <th className="px-2 py-1 text-left">Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {blockedSlots.length === 0 ? (
+                        <tr><td colSpan={4} className="text-center py-2">No blocked slots</td></tr>
+                      ) : (
+                        blockedSlots.map(slot => (
+                          <tr key={slot.id}>
+                            <td className="px-2 py-1">{slot.date}</td>
+                            <td className="px-2 py-1">{slot.start_time}</td>
+                            <td className="px-2 py-1">{slot.end_time}</td>
+                            <td className="px-2 py-1">{slot.reason || '-'}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           )}
         </motion.div>
       </div>
