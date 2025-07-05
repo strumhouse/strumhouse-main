@@ -27,7 +27,7 @@ import Modal from '../components/UI/Modal';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 
-type AdminTab = 'overview' | 'bookings' | 'services' | 'addons' | 'categories' | 'users' | 'gallery' | 'settings';
+type AdminTab = 'overview' | 'bookings' | 'services' | 'addons' | 'categories' | 'users' | 'gallery' | 'blocked-slots' | 'settings';
 
 
 const AdminDashboard: React.FC = () => {
@@ -41,7 +41,8 @@ const AdminDashboard: React.FC = () => {
     confirmedBookings: 0,
     totalRevenue: 0,
     totalUsers: 0,
-    totalServices: 0
+    totalServices: 0,
+    blockedSlots: 0
   });
   const [bookings, setBookings] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
@@ -153,7 +154,8 @@ const AdminDashboard: React.FC = () => {
         confirmedBookings: allBookings.filter(b => b.status === 'confirmed').length,
         totalRevenue,
         totalUsers: allUsers.length,
-        totalServices: allServices.length
+        totalServices: allServices.length,
+        blockedSlots: blockedSlots.length
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -180,7 +182,8 @@ const AdminDashboard: React.FC = () => {
     { id: 'categories', label: 'Categories', icon: Settings },
     { id: 'users', label: 'Users', icon: Users },
     { id: 'gallery', label: 'Gallery', icon: Image },
-    { id: 'settings', label: 'Settings', icon: Shield }
+    { id: 'blocked-slots', label: 'Blocked Slots', icon: Shield },
+    { id: 'settings', label: 'Settings', icon: Settings }
   ];
 
   const fetchGalleryImages = async () => {
@@ -613,12 +616,12 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  // Fetch blocked slots on mount
+  // Fetch blocked slots when tab is active
   useEffect(() => {
-    if (!authLoading && user && user.role === 'admin') {
+    if (activeTab === 'blocked-slots') {
       fetchBlockedSlots();
     }
-  }, [authLoading, user]);
+  }, [activeTab]);
 
   const fetchBlockedSlots = async () => {
     try {
@@ -758,7 +761,7 @@ const AdminDashboard: React.FC = () => {
           {activeTab === 'overview' && (
             <div className="space-y-6">
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 <div className="bg-gray-800 rounded-lg p-6">
                   <div className="flex items-center">
                     <div className="bg-blue-500/20 p-3 rounded-lg">
@@ -803,6 +806,18 @@ const AdminDashboard: React.FC = () => {
                     <div className="ml-4">
                       <p className="text-gray-400 text-sm">Total Users</p>
                       <p className="text-2xl font-bold text-white">{stats.totalUsers}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gray-800 rounded-lg p-6">
+                  <div className="flex items-center">
+                    <div className="bg-red-500/20 p-3 rounded-lg">
+                      <Shield className="w-6 h-6 text-red-500" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-gray-400 text-sm">Blocked Slots</p>
+                      <p className="text-2xl font-bold text-white">{stats.blockedSlots}</p>
                     </div>
                   </div>
                 </div>
@@ -1287,83 +1302,97 @@ const AdminDashboard: React.FC = () => {
             </div>
           )}
 
+          {activeTab === 'blocked-slots' && user?.role === 'admin' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Blocked Time Slots Management</h2>
+              </div>
+              
+              {/* Block New Slot Form */}
+              <div className="bg-gray-800 rounded-lg p-6">
+                <h3 className="text-xl font-bold text-white mb-4">Block New Time Slot</h3>
+                <form onSubmit={handleBlockSlotSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <div>
+                    <label className="block text-gray-300 mb-1">Date</label>
+                    <input type="date" name="date" value={blockSlotForm.date} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" required />
+                  </div>
+                  <div>
+                    <label className="block text-gray-300 mb-1">Start Time</label>
+                    <input type="time" name="start_time" value={blockSlotForm.start_time} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" required />
+                  </div>
+                  <div>
+                    <label className="block text-gray-300 mb-1">End Time</label>
+                    <input type="time" name="end_time" value={blockSlotForm.end_time} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" required />
+                  </div>
+                  <div>
+                    <label className="block text-gray-300 mb-1">Reason (optional)</label>
+                    <input type="text" name="reason" value={blockSlotForm.reason} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" />
+                  </div>
+                  <div className="md:col-span-4">
+                    <button type="submit" className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-6 py-2 rounded-lg mt-2" disabled={blockSlotLoading}>
+                      {blockSlotLoading ? 'Blocking...' : 'Block Slot'}
+                    </button>
+                  </div>
+                  {blockSlotError && <div className="md:col-span-4 text-red-400 mt-2">{blockSlotError}</div>}
+                </form>
+              </div>
+
+              {/* Blocked Slots Table */}
+              <div className="bg-gray-800 rounded-lg p-6">
+                <h3 className="text-xl font-bold text-white mb-4">Currently Blocked Slots (Next 30 Days)</h3>
+                {blockSlotLoading ? (
+                  <LoadingSpinner />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm text-gray-300">
+                      <thead className="bg-gray-700">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Date</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Start Time</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">End Time</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Reason</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-700">
+                        {blockedSlots.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                              No blocked slots found
+                            </td>
+                          </tr>
+                        ) : (
+                          blockedSlots.map(slot => (
+                            <tr key={slot.id} className="hover:bg-gray-700">
+                              <td className="px-4 py-4 whitespace-nowrap text-sm text-white">{slot.date}</td>
+                              <td className="px-4 py-4 whitespace-nowrap text-sm text-white">{slot.start_time}</td>
+                              <td className="px-4 py-4 whitespace-nowrap text-sm text-white">{slot.end_time}</td>
+                              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-400">{slot.reason || '-'}</td>
+                              <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                <button
+                                  onClick={() => handleUnblockSlot(slot.id)}
+                                  disabled={blockSlotLoading}
+                                  className="bg-red-500 hover:bg-red-400 text-white text-xs px-3 py-1 rounded transition-colors disabled:opacity-50"
+                                >
+                                  {blockSlotLoading ? 'Unblocking...' : 'Unblock'}
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {activeTab === 'settings' && (
             <div className="bg-gray-800 rounded-lg p-6">
               <h2 className="text-2xl font-bold text-white mb-4">Studio Settings</h2>
               <p className="text-gray-400">Settings interface coming soon...</p>
             </div>
-          )}
-
-          {/* Block Time Slot Section */}
-          {user && user.role === 'admin' && (
-            <section className="bg-gray-900 rounded-lg p-6 mt-8">
-              <h2 className="text-xl font-bold text-white mb-4">Block Time Slot</h2>
-              <form onSubmit={handleBlockSlotSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div>
-                  <label className="block text-gray-300 mb-1">Date</label>
-                  <input type="date" name="date" value={blockSlotForm.date} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" required />
-                </div>
-                <div>
-                  <label className="block text-gray-300 mb-1">Start Time</label>
-                  <input type="time" name="start_time" value={blockSlotForm.start_time} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" required />
-                </div>
-                <div>
-                  <label className="block text-gray-300 mb-1">End Time</label>
-                  <input type="time" name="end_time" value={blockSlotForm.end_time} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" required />
-                </div>
-                <div>
-                  <label className="block text-gray-300 mb-1">Reason (optional)</label>
-                  <input type="text" name="reason" value={blockSlotForm.reason} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" />
-                </div>
-                <div className="md:col-span-4">
-                  <button type="submit" className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-6 py-2 rounded-lg mt-2" disabled={blockSlotLoading}>
-                    {blockSlotLoading ? 'Blocking...' : 'Block Slot'}
-                  </button>
-                </div>
-                {blockSlotError && <div className="md:col-span-4 text-red-400 mt-2">{blockSlotError}</div>}
-              </form>
-              <h3 className="text-lg font-semibold text-white mb-2">Currently Blocked Slots (next 30 days)</h3>
-              {blockSlotLoading ? (
-                <LoadingSpinner />
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm text-gray-300">
-                    <thead>
-                      <tr>
-                        <th className="px-2 py-1 text-left">Date</th>
-                        <th className="px-2 py-1 text-left">Start</th>
-                        <th className="px-2 py-1 text-left">End</th>
-                        <th className="px-2 py-1 text-left">Reason</th>
-                        <th className="px-2 py-1 text-left">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {blockedSlots.length === 0 ? (
-                        <tr><td colSpan={5} className="text-center py-2">No blocked slots</td></tr>
-                      ) : (
-                        blockedSlots.map(slot => (
-                          <tr key={slot.id} className="hover:bg-gray-800">
-                            <td className="px-2 py-1">{slot.date}</td>
-                            <td className="px-2 py-1">{slot.start_time}</td>
-                            <td className="px-2 py-1">{slot.end_time}</td>
-                            <td className="px-2 py-1">{slot.reason || '-'}</td>
-                            <td className="px-2 py-1">
-                              <button
-                                onClick={() => handleUnblockSlot(slot.id)}
-                                disabled={blockSlotLoading}
-                                className="bg-red-500 hover:bg-red-400 text-white text-xs px-2 py-1 rounded transition-colors disabled:opacity-50"
-                              >
-                                {blockSlotLoading ? 'Unblocking...' : 'Unblock'}
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
           )}
         </motion.div>
       </div>
