@@ -32,7 +32,7 @@ type AdminTab = 'overview' | 'bookings' | 'services' | 'addons' | 'categories' |
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user, logout, loading: authLoading } = useAuth();
+  const { user, logout, loading: authLoading, userProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -117,6 +117,7 @@ const AdminDashboard: React.FC = () => {
     category_id: '',
     is_active: true,
   });
+  const [bookingDateFilter, setBookingDateFilter] = useState<string>('');
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -659,7 +660,7 @@ const AdminDashboard: React.FC = () => {
         start_time: blockSlotForm.start_time + ':00',
         end_time: blockSlotForm.end_time + ':00',
         reason: blockSlotForm.reason,
-        created_by: user.id
+        created_by: user ? user.id : ''
       });
       toast.success('Slot blocked successfully');
       setBlockSlotForm({ date: '', start_time: '', end_time: '', reason: '' });
@@ -719,7 +720,6 @@ const AdminDashboard: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
-              <p className="text-gray-400">Welcome back, {user.name || user.email}</p>
             </div>
             <button
               onClick={handleLogout}
@@ -862,6 +862,14 @@ const AdminDashboard: React.FC = () => {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-white">All Bookings</h2>
+                <input
+                  type="date"
+                  className="bg-gray-700 text-white rounded px-3 py-2 ml-4"
+                  value={bookingDateFilter || ''}
+                  onChange={e => setBookingDateFilter(e.target.value)}
+                  placeholder="Filter by date"
+                  style={{ minWidth: 180 }}
+                />
               </div>
               {bookingLoading ? (
                 <LoadingSpinner size="md" text="Loading bookings..." />
@@ -882,7 +890,10 @@ const AdminDashboard: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-700">
-                        {bookings.map((booking) => (
+                        {(bookingDateFilter
+                          ? bookings.filter(b => b.date === bookingDateFilter)
+                          : bookings
+                        ).map((booking) => (
                           <tr key={booking.id} className="hover:bg-gray-700">
                             <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-400">{booking.id}</td>
                             <td className="px-6 py-4 whitespace-nowrap">
