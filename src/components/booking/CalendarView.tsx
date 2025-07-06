@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Calendar, Clock, Users } from 'lucide-react';
 import { generateTimeSlots, findServiceConfig } from '../../utils/timeSlots';
-import { bookingService, blockedSlotService, bookingSlotService } from '../../lib/database';
+import { blockedSlotService, bookingSlotService } from '../../lib/database';
 import LoadingSpinner from '../UI/LoadingSpinner';
 
 interface CalendarViewProps {
   serviceId: string;
+  categoryId?: string;
   onDateSelect: (date: Date) => void;
   onTimeSelect: (date: Date, time: string, duration: number) => void;
   selectedDate: Date | null;
@@ -27,6 +28,7 @@ interface CalendarDay {
 
 const CalendarView: React.FC<CalendarViewProps> = ({
   serviceId,
+  categoryId,
   onDateSelect,
   onTimeSelect,
   selectedDate,
@@ -40,7 +42,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Generate calendar days for current month
-  const generateCalendarDays = (date: Date) => {
+  const generateCalendarDays = useCallback((date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
     const firstDay = new Date(year, month, 1);
@@ -48,15 +50,17 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     startDate.setDate(startDate.getDate() - firstDay.getDay());
     
     const days: CalendarDay[] = [];
+    // Force IST timezone for today calculation
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const istToday = new Date(today.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+    istToday.setHours(0, 0, 0, 0);
 
     for (let i = 0; i < 42; i++) { // 6 weeks * 7 days
       const currentDate = new Date(startDate);
       currentDate.setDate(startDate.getDate() + i);
       
       const isCurrentMonth = currentDate.getMonth() === month;
-      const isToday = currentDate.getTime() === today.getTime();
+      const isToday = currentDate.getTime() === istToday.getTime(); // Use actual IST today
       const isSelected = !!selectedDate && currentDate.getTime() === selectedDate.getTime();
       
       // Get available slots for this date
@@ -80,12 +84,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     }
 
     return days;
-  };
+  }, [timeSlots, selectedDate]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
+        
+
         
         // Get date range for current month view
         const startDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
@@ -109,7 +115,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           startDate,
           endDate,
           bookings,
-          blocked
+          blocked,
+          categoryId
         );
 
         setTimeSlots(generatedSlots);
@@ -123,7 +130,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     };
 
     fetchData();
-  }, [currentMonth, serviceId]);
+  }, [currentMonth, serviceId, categoryId, generateCalendarDays]);
 
   const nextMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
@@ -152,7 +159,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const getServiceConfig = () => {
-    return findServiceConfig(serviceId);
+    return findServiceConfig(serviceId, categoryId);
   };
 
   if (loading) {

@@ -166,14 +166,8 @@ const SubServiceSelector: React.FC<SubServiceSelectorProps> = ({
         </div>
       )}
 
-      {/* Navigation Buttons */}
-      <div className="mt-6 flex justify-between">
-        <button
-          onClick={onBack}
-          className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-colors"
-        >
-          Back
-        </button>
+      {/* Navigation Button */}
+      <div className="mt-6 flex justify-end">
         <button
           onClick={onNext}
           disabled={!selectedService}

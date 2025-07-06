@@ -7,6 +7,7 @@ import LoadingSpinner from '../UI/LoadingSpinner';
 
 interface DateTimeSelectorProps {
   serviceId: string;
+  categoryId?: string;
   selectedDate: Date | null;
   selectedSlots: { startTime: string; endTime: string }[];
   onSelect: (date: Date, slots: { startTime: string; endTime: string }[]) => void;
@@ -29,6 +30,7 @@ interface GeneratedTimeSlot {
 
 const DateTimeSelector: React.FC<DateTimeSelectorProps> = ({ 
   serviceId, 
+  categoryId,
   selectedDate, 
   selectedSlots,
   onSelect, 
@@ -66,7 +68,8 @@ const DateTimeSelector: React.FC<DateTimeSelectorProps> = ({
           startDate,
           endDate,
           allBookedSlots,
-          blocked
+          blocked,
+          categoryId
         );
         setTimeSlots(generatedSlots);
       } catch (err) {
@@ -82,7 +85,7 @@ const DateTimeSelector: React.FC<DateTimeSelectorProps> = ({
   }, [serviceId]);
 
   const getAvailableDatesForService = () => {
-    return getAvailableDates(serviceId, 30);
+    return getAvailableDates(serviceId, 30, categoryId);
   };
 
   const getAvailableTimeSlots = (date: Date) => {
@@ -124,7 +127,7 @@ const DateTimeSelector: React.FC<DateTimeSelectorProps> = ({
   };
 
   const getServiceConfig = () => {
-    return findServiceConfig(serviceId);
+    return findServiceConfig(serviceId, categoryId);
   };
 
   if (loading) {
@@ -295,14 +298,8 @@ const DateTimeSelector: React.FC<DateTimeSelectorProps> = ({
           </ul>
         </div>
       )}
-      {/* Navigation Buttons */}
-      <div className="mt-6 flex justify-between">
-        <button
-          onClick={onBack}
-          className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-colors"
-        >
-          Back
-        </button>
+      {/* Navigation Button */}
+      <div className="mt-6 flex justify-end">
         <button
           onClick={onNext}
           disabled={!selectedDate || localSelectedSlots.length === 0}

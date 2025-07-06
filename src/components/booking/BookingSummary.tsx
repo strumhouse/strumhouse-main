@@ -166,8 +166,8 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
         end_time,
         duration,
         participants: customerDetails.attendees || 1,
-        // Supabase type expects string[], but DB is jsonb. Use 'as any' to bypass type check.
-        add_ons: selectedAddOns as any,
+        // Supabase type expects string[], but DB is jsonb. Use proper type assertion.
+        add_ons: selectedAddOns as Record<string, number>,
         total_amount: calculateTotalCost(),
         advance_amount: calculateAdvanceAmount(),
         status: 'pending' as 'pending',

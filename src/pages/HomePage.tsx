@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Play, Star, Calendar, Music, Users, Award, Clock } from 'lucide-react';
+import { Play, Star, Calendar, Music, Users, Award } from 'lucide-react';
 import recordingImg from '../assets/recording.jpeg';
 import jampadImg from '../assets/jampad.jpeg';
 

@@ -41,7 +41,15 @@ const AddOnSelector: React.FC<AddOnSelectorProps> = ({
         const data = await addOnService.getByCategory(categoryId);
         // Map data to ensure all fields match AddOn type (no nulls for string/bool)
         setAddOns(
-          data.map((item: any) => ({
+          data.map((item: {
+            id: string;
+            name: string;
+            description?: string;
+            price_per_hour: number;
+            max_quantity?: number;
+            category_id?: string;
+            is_active?: boolean;
+          }) => ({
             id: item.id,
             name: item.name,
             description: item.description ?? '',
@@ -216,13 +224,7 @@ const AddOnSelector: React.FC<AddOnSelectorProps> = ({
           You can skip this step if you don't need any extras
         </p>
         
-        <div className="flex justify-center space-x-4">
-          <button
-            onClick={onBack}
-            className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-colors"
-          >
-            Back
-          </button>
+        <div className="flex justify-center">
           <button
             onClick={onNext}
             className="px-6 py-3 bg-secondary hover:bg-secondary/80 text-primary font-bold rounded-lg transition-colors"

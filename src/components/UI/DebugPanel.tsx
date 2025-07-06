@@ -1,9 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { performanceMonitor } from '../../utils/performance';
 
+interface DebugInfo {
+  userExists: boolean;
+  userId?: string;
+  loading: boolean;
+  hasLoaded: boolean;
+  profileExists: boolean;
+  bookingsCount: number;
+}
+
 interface DebugPanelProps {
   isVisible?: boolean;
-  debugInfo?: any;
+  debugInfo?: DebugInfo;
 }
 
 const DebugPanel: React.FC<DebugPanelProps> = React.memo(({ isVisible = false, debugInfo }) => {

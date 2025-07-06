@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Music, Menu, X, User, LogOut } from 'lucide-react';
+import { Menu, X, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { motion } from 'framer-motion';
 import logo from '../../assets/logo.png';
@@ -9,7 +9,7 @@ const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const location = useLocation();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, userProfile, isAuthenticated, logout } = useAuth();
 
   const navItems = [
     { name: 'Home', path: '/' },
@@ -55,7 +55,7 @@ const Navbar: React.FC = () => {
                   className="flex items-center space-x-2 text-white hover:text-green-500 transition-colors"
                 >
                   <User className="h-5 w-5" />
-                  <span className="text-sm">{user?.name || user?.email}</span>
+                  <span className="text-sm">{userProfile?.name || user?.email}</span>
                 </button>
                 
                 {showUserMenu && (
@@ -65,11 +65,11 @@ const Navbar: React.FC = () => {
                     className="absolute right-0 mt-2 w-48 bg-black border border-green-500/20 rounded-md shadow-lg py-1 z-50"
                   >
                     <Link
-                      to={user?.role === 'admin' ? '/admin' : '/dashboard'}
+                      to={userProfile?.role === 'admin' ? '/admin' : '/dashboard'}
                       className="block px-4 py-2 text-sm text-white hover:bg-green-500/20 hover:text-green-500"
                       onClick={() => setShowUserMenu(false)}
                     >
-                      {user?.role === 'admin' ? 'Admin Panel' : 'Dashboard'}
+                      {userProfile?.role === 'admin' ? 'Admin Panel' : 'Dashboard'}
                     </Link>
                     <button
                       onClick={() => {
@@ -129,7 +129,7 @@ const Navbar: React.FC = () => {
                 to={item.path}
                 className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
                   isActive(item.path)
-                    ? 'text-yellow-500 bg-yellow-500/10'
+                    ? 'text-yellow-500'
                     : 'text-white hover:text-green-500 hover:bg-green-500/10'
                 }`}
                 onClick={() => setIsOpen(false)}
@@ -143,11 +143,11 @@ const Navbar: React.FC = () => {
               {isAuthenticated ? (
                 <>
                   <Link
-                    to={user?.role === 'admin' ? '/admin' : '/dashboard'}
+                    to={userProfile?.role === 'admin' ? '/admin' : '/dashboard'}
                     className="block px-3 py-2 text-white hover:text-green-500 transition-colors"
                     onClick={() => setIsOpen(false)}
                   >
-                    {user?.role === 'admin' ? 'Admin Panel' : 'Dashboard'}
+                    {userProfile?.role === 'admin' ? 'Admin Panel' : 'Dashboard'}
                   </Link>
                   <button
                     onClick={() => {

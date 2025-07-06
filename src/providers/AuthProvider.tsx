@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AuthContext } from '../contexts/AuthContext';
 import type { AuthProviderProps, AuthContextType, UserProfile } from '../types/AuthTypes';
+import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { userService } from '../lib/database';
 import toast from 'react-hot-toast';
@@ -22,8 +23,8 @@ function timeoutPromise<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<any>(null);
-  const [session, setSession] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -31,7 +32,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const profile = await userService.getUserById(userId);
       setUserProfile(profile);
-      setUser((prev: any) => {
+      setUser((prev: User | null) => {
         const merged = prev ? { ...prev, ...profile } : profile;
         return merged;
       });
@@ -222,6 +223,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     session,
     userProfile,
+    isAuthenticated: !!user,
     login,
     signup,
     logout,

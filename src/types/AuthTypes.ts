@@ -1,3 +1,5 @@
+import type { User, Session } from '@supabase/supabase-js';
+
 export interface UserProfile {
   id: string;
   email: string;
@@ -9,9 +11,10 @@ export interface UserProfile {
 }
 
 export interface AuthContextType {
-  user: any; // Use Supabase User type if available
-  session: any; // Use Supabase Session type if available
+  user: User | null;
+  session: Session | null;
   userProfile: UserProfile | null;
+  isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   signup: (name: string, phone: string, email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;

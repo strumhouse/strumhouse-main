@@ -1,5 +1,17 @@
 // Dynamic Time Slot Generation Utility
-import { addDays, format, isAfter, isBefore, startOfDay } from 'date-fns';
+// 
+// CATEGORY-BASED CONFIGURATION SYSTEM:
+// This system uses category IDs to determine booking rules and availability.
+// To add a new service category:
+// 1. Add the category configuration to the categoryConfigs object in findServiceConfig()
+// 2. Pass the categoryId parameter when calling generateTimeSlots() or findServiceConfig()
+// 3. All services in the same category will automatically use the same rules
+//
+// Example usage:
+// generateTimeSlots(serviceId, startDate, endDate, bookings, blocked, 'jampad')
+// findServiceConfig(serviceId, 'recording-studio')
+//
+import { addDays, format, isBefore, startOfDay } from 'date-fns';
 
 export interface TimeSlotConfig {
   serviceId: string;
@@ -62,22 +74,22 @@ export const SERVICE_CONFIGS: { [key: string]: TimeSlotConfig } = {
   'Raw Recording': {
     serviceId: 'Raw Recording',
     categoryId: 'recording-studio',
-    startHour: 11, // 11 AM
+    startHour: 9, // 9 AM
     endHour: 22, // 10 PM
     slotDuration: 1, // 1 hour slots
     advanceBookingHours: 24,
     maxParticipants: 6,
-    availableDays: [1, 2, 3, 4, 5, 6] // Monday to Saturday
+    availableDays: [1, 2, 3, 4, 5, 6, 7] // Monday to Sunday (7 days)
   },
   'Mixing & Mastering': {
     serviceId: 'Mixing & Mastering',
     categoryId: 'recording-studio',
-    startHour: 11, // 11 AM
+    startHour: 9, // 9 AM
     endHour: 22, // 10 PM
     slotDuration: 1, // 1 hour slots
     advanceBookingHours: 24,
     maxParticipants: 1,
-    availableDays: [1, 2, 3, 4, 5, 6] // Monday to Saturday
+    availableDays: [1, 2, 3, 4, 5, 6, 7] // Monday to Sunday (7 days)
   }
 };
 
@@ -96,27 +108,28 @@ export const FALLBACK_CONFIGS: { [key: string]: TimeSlotConfig } = {
   'recording': {
     serviceId: 'recording',
     categoryId: 'recording-studio',
-    startHour: 11,
+    startHour: 9,
     endHour: 22,
     slotDuration: 1,
     advanceBookingHours: 24,
     maxParticipants: 6,
-    availableDays: [1, 2, 3, 4, 5, 6]
+    availableDays: [1, 2, 3, 4, 5, 6, 7]
   },
   'mixing': {
     serviceId: 'mixing',
     categoryId: 'recording-studio',
-    startHour: 11,
+    startHour: 9,
     endHour: 22,
     slotDuration: 1,
     advanceBookingHours: 24,
     maxParticipants: 1,
-    availableDays: [1, 2, 3, 4, 5, 6]
+    availableDays: [1, 2, 3, 4, 5, 6, 7]
   }
 };
 
 // Helper function to find service configuration
-export const findServiceConfig = (serviceId: string): TimeSlotConfig | null => {
+export const findServiceConfig = (serviceId: string, categoryId?: string): TimeSlotConfig | null => {
+  
   // First try exact match
   if (SERVICE_CONFIGS[serviceId]) {
     return SERVICE_CONFIGS[serviceId];
@@ -144,6 +157,78 @@ export const findServiceConfig = (serviceId: string): TimeSlotConfig | null => {
     }
   }
   
+  // Category-based configurations
+  // This is the main configuration system - add new categories here
+  const categoryConfigs: { [key: string]: TimeSlotConfig } = {
+    'jampad': {
+      serviceId: serviceId,
+      categoryId: 'jampad',
+      startHour: 9,
+      endHour: 22,
+      slotDuration: 1,
+      advanceBookingHours: 2,
+      maxParticipants: 10,
+      availableDays: [1, 2, 3, 4, 5, 6, 7]
+    },
+    'recording-studio': {
+      serviceId: serviceId,
+      categoryId: 'recording-studio',
+      startHour: 9,
+      endHour: 22,
+      slotDuration: 1,
+      advanceBookingHours: 24,
+      maxParticipants: 6,
+      availableDays: [1, 2, 3, 4, 5, 6, 7]
+    },
+    '5bb7cae3-40c1-4e91-9c81-090f11266313': {
+      serviceId: serviceId,
+      categoryId: '5bb7cae3-40c1-4e91-9c81-090f11266313',
+      startHour: 9,
+      endHour: 22,
+      slotDuration: 1,
+      advanceBookingHours: 24,
+      maxParticipants: 6,
+      availableDays: [1, 2, 3, 4, 5, 6, 7]
+    },
+    'c5d1dc72-55aa-496d-aaff-99943861b2df': {
+      serviceId: serviceId,
+      categoryId: 'c5d1dc72-55aa-496d-aaff-99943861b2df',
+      startHour: 9,
+      endHour: 22,
+      slotDuration: 1,
+      advanceBookingHours: 2,
+      maxParticipants: 10,
+      availableDays: [1, 2, 3, 4, 5, 6, 7]
+    }
+    // Add new categories here:
+    // 'new-category': {
+    //   serviceId: serviceId,
+    //   categoryId: 'new-category',
+    //   startHour: 10,
+    //   endHour: 20,
+    //   slotDuration: 2,
+    //   advanceBookingHours: 48,
+    //   maxParticipants: 4,
+    //   availableDays: [1, 2, 3, 4, 5] // Mon-Fri only
+    // }
+  };
+  
+  // Use provided categoryId or fallback to service ID mapping
+  let resolvedCategoryId = categoryId || 'default';
+  
+  // If no categoryId provided, use simple mapping for existing services
+  if (!categoryId) {
+    if (serviceId === '1c2c713a-e8be-4af1-9f57-cde140e6d1b6') {
+      resolvedCategoryId = 'c5d1dc72-55aa-496d-aaff-99943861b2df'; // Jampad category ID
+    } else if (serviceId === '8e94a72f-887b-4f91-87f8-ac0dbf30155a') {
+      resolvedCategoryId = '5bb7cae3-40c1-4e91-9c81-090f11266313'; // Strumhouse Recording Studio category ID
+    }
+  }
+  
+  if (categoryConfigs[resolvedCategoryId]) {
+    return categoryConfigs[resolvedCategoryId];
+  }
+  
   // Default fallback for any service
   return {
     serviceId: serviceId,
@@ -162,9 +247,10 @@ export const generateTimeSlots = (
   startDate: Date,
   endDate: Date,
   existingBookings: any[] = [],
-  blockedSlots: any[] = []
+  blockedSlots: any[] = [],
+  categoryId?: string
 ): GeneratedTimeSlot[] => {
-  const config = findServiceConfig(serviceId);
+  const config = findServiceConfig(serviceId, categoryId);
   if (!config) {
     console.error(`No configuration found for service: ${serviceId}`);
     // Return empty array instead of throwing error
@@ -172,7 +258,7 @@ export const generateTimeSlots = (
   }
 
   const slots: GeneratedTimeSlot[] = [];
-  const currentDate = new Date();
+  
   const currentTime = new Date();
 
   // Generate slots for each day in the range
@@ -191,10 +277,11 @@ export const generateTimeSlots = (
         const endTime = `${(hour + config.slotDuration).toString().padStart(2, '0')}:00:00`;
         
         // Check if this slot is blocked by advance booking rules
-        const slotDateTime = new Date(`${dateStr}T${startTime}`);
-        const hoursUntilSlot = (slotDateTime.getTime() - currentTime.getTime()) / (1000 * 60 * 60);
+        const today = new Date();
+        const todayStr = format(today, 'yyyy-MM-dd');
         
-        const isBlockedByAdvanceRule = hoursUntilSlot < config.advanceBookingHours;
+        // For recording services (24h advance), block current date
+        const isBlockedByAdvanceRule = config.advanceBookingHours >= 24 && dateStr === todayStr;
         
         // Check if slot is blocked by maintenance/events
         const isBlockedByEvent = blockedSlots.some(blocked => 
@@ -204,13 +291,13 @@ export const generateTimeSlots = (
         );
         
         // Check if slot is already booked (only count confirmed bookings)
-        const isBooked = existingBookings.some(bookingSlot => 
-          bookingSlot.date === dateStr &&
-          bookingSlot.start_time === startTime &&
-          bookingSlot.end_time === endTime &&
-          bookingSlot.bookings && 
-          bookingSlot.bookings.status === 'confirmed'
-        );
+        const isBooked = existingBookings.some(bookingSlot => {
+          return bookingSlot.date === dateStr &&
+            bookingSlot.start_time === startTime &&
+            bookingSlot.end_time === endTime &&
+            bookingSlot.bookings && 
+            bookingSlot.bookings.status === 'confirmed';
+        });
         
        
         const slot: GeneratedTimeSlot = {
@@ -235,8 +322,8 @@ export const generateTimeSlots = (
   return slots;
 };
 
-export const getAvailableDates = (serviceId: string, daysAhead: number = 30): Date[] => {
-  const config = findServiceConfig(serviceId);
+export const getAvailableDates = (serviceId: string, daysAhead: number = 30, categoryId?: string): Date[] => {
+  const config = findServiceConfig(serviceId, categoryId);
   if (!config) return [];
   
   const dates: Date[] = [];
@@ -263,30 +350,7 @@ export const formatTimeSlot = (slot: GeneratedTimeSlot) => {
   };
 };
 
-export const calculateSlotPrice = (serviceId: string, duration: number, addOns: { [key: string]: number } = {}) => {
-  const config = findServiceConfig(serviceId);
-  if (!config) return 0;
-  
-  // This would need to be fetched from the database
-  // For now, using hardcoded prices
-  const basePricePerHour = {
-    'Jampad': 400,
-    'Raw Recording': 1000,
-    'Mixing & Mastering': 0 // Contact for quotation
-  }[serviceId] || 0;
-  
-  const addOnPrices = {
-    'live-recording': 1000,
-    'in-ears': 300
-  };
-  
-  const basePrice = basePricePerHour * duration;
-  const addOnsTotal = Object.entries(addOns).reduce((total, [addOnId, quantity]) => {
-    return total + ((addOnPrices[addOnId as keyof typeof addOnPrices] || 0) * quantity);
-  }, 0);
-  
-  return basePrice + addOnsTotal;
-};
+
 
 export const formatDate = (date: string | Date) => {
   if (!date) return 'N/A';

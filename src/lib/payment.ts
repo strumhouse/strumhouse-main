@@ -151,39 +151,36 @@ export const paymentService = {
     }
   },
 
-  // Verify payment signature (FRONTEND ONLY, NOT SECURE)
+  // Verify payment signature via backend
   async verifyPayment(paymentResponse: PaymentResponse): Promise<boolean> {
     try {
-      // WARNING: This is NOT secure. Move to backend for production.
-      // Signature = HMAC_SHA256(order_id|payment_id, SECRET)
-      // This function is not used in production and should be removed or replaced with a backend call.
-      return true;
+      // Call backend verification endpoint
+      const response = await fetch('/api/verify-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          razorpay_order_id: paymentResponse.razorpay_order_id,
+          razorpay_payment_id: paymentResponse.razorpay_payment_id,
+          razorpay_signature: paymentResponse.razorpay_signature
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Payment verification failed:', response.statusText);
+        return false;
+      }
+
+      const result = await response.json();
+      return result.verified === true;
     } catch (error) {
       console.error('Error verifying payment:', error);
       return false;
     }
   },
 
-  // Generate HMAC SHA256 signature (for frontend demo only)
-  async generateSignature(data: string, key: string): Promise<string> {
-    // Use SubtleCrypto API (browser)
-    const encoder = new TextEncoder();
-    const keyData = encoder.encode(key);
-    const cryptoKey = await window.crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
-    const signature = await window.crypto.subtle.sign(
-      'HMAC',
-      cryptoKey,
-      encoder.encode(data)
-    );
-    // Convert ArrayBuffer to hex string
-    return Array.from(new Uint8Array(signature)).map(b => b.toString(16).padStart(2, '0')).join('');
-  },
+
 
   // Save payment details to database
   async savePaymentDetails(bookingId: string, paymentResponse: PaymentResponse, amount: number): Promise<PaymentDetails> {

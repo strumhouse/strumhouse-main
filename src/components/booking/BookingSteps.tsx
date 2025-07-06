@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, Circle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import CategorySelector from './CategorySelector';
 import SubServiceSelector from './SubServiceSelector';
@@ -48,6 +48,11 @@ const BookingSteps: React.FC<BookingStepsProps> = ({ onComplete }) => {
     }
   }, [location.state]);
 
+  // Scroll to top whenever currentStep changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentStep]);
+
   const steps = [
     { id: 1, title: 'Category', description: 'Choose service type' },
     { id: 2, title: 'Service', description: 'Select specific service' },
@@ -57,13 +62,17 @@ const BookingSteps: React.FC<BookingStepsProps> = ({ onComplete }) => {
     { id: 6, title: 'Summary', description: 'Review & confirm' }
   ];
 
-  const handleStepComplete = (step: number, data: any) => {
+  const handleStepComplete = (step: number, data: Partial<typeof bookingData>) => {
     setBookingData(prev => ({ ...prev, ...data }));
     setCurrentStep(step + 1);
+    // Scroll to top when moving to next step
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleStepBack = (step: number) => {
     setCurrentStep(step - 1);
+    // Scroll to top when going back to previous step
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleBookingComplete = (bookingId: string) => {
@@ -121,6 +130,7 @@ const BookingSteps: React.FC<BookingStepsProps> = ({ onComplete }) => {
         return (
           <DateTimeSelector
             serviceId={bookingData.serviceId}
+            categoryId={bookingData.categoryId}
             selectedDate={bookingData.selectedDate}
             selectedSlots={bookingData.selectedSlots}
             onSelect={(date, slots) => {

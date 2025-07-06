@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Music, Menu, X, Calendar, User, LogOut, Settings } from 'lucide-react';
+import { Menu, X, Calendar, User, LogOut } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
@@ -26,7 +26,7 @@ const Header: React.FC = () => {
       await logout();
       setUserMenuOpen(false);
       navigate('/login');
-    } catch (error) {
+    } catch {
       toast.error('Logout failed. Please try again.');
     }
   };

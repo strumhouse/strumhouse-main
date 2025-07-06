@@ -8,7 +8,7 @@ const Contact: React.FC = () => {
       icon: Phone,
       title: 'Phone',
       details: ['+91 8882382545'],
-      color: 'text-green-500'
+      color: 'text-secondary'
     },
     {
       icon: Mail,
@@ -56,7 +56,7 @@ const Contact: React.FC = () => {
             transition={{ duration: 0.8 }}
             className="text-center mb-16"
           >
-            <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-green-500 to-yellow-500 bg-clip-text text-transparent">
+            <h1 className="text-5xl md:text-6xl font-bold mb-6 text-secondary">
               Contact Us
             </h1>
             <p className="text-xl text-gray-400 max-w-3xl mx-auto">
@@ -72,7 +72,7 @@ const Contact: React.FC = () => {
             transition={{ duration: 0.8, delay: 0.2 }}
             className="max-w-4xl mx-auto"
           >
-            <h2 className="text-3xl font-bold text-green-500 mb-8 text-center">Get In Touch</h2>
+            <h2 className="text-3xl font-bold text-secondary mb-8 text-center">Get In Touch</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {contactInfo.map((info, index) => (
@@ -103,7 +103,7 @@ const Contact: React.FC = () => {
               transition={{ duration: 0.8, delay: 0.4 }}
               className="mt-12"
             >
-              <h3 className="text-2xl font-bold text-green-500 mb-6 text-center">Follow Us</h3>
+              <h3 className="text-2xl font-bold text-secondary mb-6 text-center">Follow Us</h3>
               <div className="flex justify-center space-x-6">
                 {socialLinks.map((social, index) => (
                   <motion.a
@@ -137,7 +137,7 @@ const Contact: React.FC = () => {
             viewport={{ once: true }}
             className="text-center mb-12"
           >
-            <h2 className="text-3xl font-bold text-green-500 mb-4">Find Us</h2>
+            <h2 className="text-3xl font-bold text-secondary mb-4">Find Us</h2>
             <p className="text-gray-400">Visit our studio in Kalkaji, Delhi</p>
           </motion.div>
 
@@ -160,7 +160,7 @@ const Contact: React.FC = () => {
               href="https://maps.app.goo.gl/waas2Hf4QjUtqTx39"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition-colors"
+              className="inline-flex items-center space-x-2 bg-secondary hover:bg-secondary/80 text-white px-6 py-3 rounded-lg transition-colors"
             >
               <MapPin className="h-5 w-5" />
               <span>Open in Google Maps</span>
@@ -180,7 +180,7 @@ const Contact: React.FC = () => {
             viewport={{ once: true }}
             className="text-center mb-12"
           >
-            <h2 className="text-3xl font-bold text-green-500 mb-4">Frequently Asked Questions</h2>
+            <h2 className="text-3xl font-bold text-secondary mb-4">Frequently Asked Questions</h2>
             <p className="text-gray-400">Quick answers to common questions</p>
           </motion.div>
 
