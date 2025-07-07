@@ -107,8 +107,11 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
   const calculateAddOnsCost = () => {
     return addOns.reduce((total, addOn) => {
       const quantity = selectedAddOns[addOn.id] || 0;
-      // Charge per hour (time slots) but not multiplied by quantity
-      // If quantity > 0, charge the add-on price for each hour
+      // For Mixing & Mastering, charge only once if selected
+      if (addOn.name === 'Mixing & Mastering') {
+        return total + (quantity > 0 ? addOn.price_per_hour : 0);
+      }
+      // For other add-ons, charge per slot/hour
       return total + (quantity > 0 ? addOn.price_per_hour * selectedSlots.length : 0);
     }, 0);
   };
@@ -371,7 +374,7 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
                         </span>
                       </div>
                       <span className="text-secondary font-semibold">
-                        ₹{addOn.price_per_hour * selectedSlots.length}
+                        ₹{addOn.name === 'Mixing & Mastering' ? addOn.price_per_hour : addOn.price_per_hour * selectedSlots.length}
                       </span>
                     </div>
                   ))}
