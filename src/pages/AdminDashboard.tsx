@@ -885,6 +885,7 @@ const AdminDashboard: React.FC = () => {
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Customer</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Date & Time</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Amount</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Remaining</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
                         </tr>
@@ -907,6 +908,7 @@ const AdminDashboard: React.FC = () => {
                               <div className="text-sm text-gray-400">{booking.start_time} - {booking.end_time}</div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-white">₹{booking.total_amount}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-yellow-400">₹{booking.total_amount - (booking.advance_amount || 0)}</td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`px-2 py-1 rounded-full text-xs ${
                                 booking.status === 'confirmed' ? 'bg-green-500/20 text-green-400' :
