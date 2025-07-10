@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Calendar, Clock, Users } from 'lucide-react';
-import { generateTimeSlots, findServiceConfig } from '../../utils/timeSlots';
+import { generateTimeSlots, findServiceConfig, getCurrentDateIST, toISTDate } from '../../utils/timeSlots';
 import { blockedSlotService, bookingSlotService } from '../../lib/database';
 import LoadingSpinner from '../UI/LoadingSpinner';
 
@@ -100,11 +100,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         // Fetch existing confirmed booking slots and blocked slots
         const [bookings, blocked] = await Promise.all([
           bookingSlotService.getConfirmedSlotsByDateRange(
-            startDate.toISOString().split('T')[0],
+            getCurrentDateIST(),
             endDate.toISOString().split('T')[0]
           ),
           blockedSlotService.getByDateRange(
-            startDate.toISOString().split('T')[0],
+            getCurrentDateIST(),
             endDate.toISOString().split('T')[0]
           )
         ]);
@@ -146,7 +146,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const getTimeSlotsForDate = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = toISTDate(date);
     return timeSlots.filter(slot => slot.date === dateStr);
   };
 

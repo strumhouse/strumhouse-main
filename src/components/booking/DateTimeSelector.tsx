@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Calendar, Clock, AlertCircle, List } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, AlertCircle} from 'lucide-react';
 import { blockedSlotService, bookingSlotService } from '../../lib/database';
-import { generateTimeSlots, getAvailableDates, findServiceConfig } from '../../utils/timeSlots';
+import { generateTimeSlots, getAvailableDates, findServiceConfig, getCurrentDateIST, toISTDate } from '../../utils/timeSlots';
 import LoadingSpinner from '../UI/LoadingSpinner';
 
 interface DateTimeSelectorProps {
@@ -51,16 +51,19 @@ const DateTimeSelector: React.FC<DateTimeSelectorProps> = ({
         const endDate = new Date();
         endDate.setDate(endDate.getDate() + 30);
 
+        const startDateIST = getCurrentDateIST();
+        const endDateStr = endDate.toISOString().split('T')[0];
+        
         // Fetch all confirmed booked slots for the range
         const allBookedSlots = await bookingSlotService.getConfirmedSlotsByDateRange(
-          startDate.toISOString().split('T')[0],
-          endDate.toISOString().split('T')[0]
+          startDateIST,
+          endDateStr
         );
 
         // Fetch blocked slots for the range
         const blocked = await blockedSlotService.getByDateRange(
-          startDate.toISOString().split('T')[0],
-          endDate.toISOString().split('T')[0]
+          startDateIST,
+          endDateStr
         );
 
         const generatedSlots = generateTimeSlots(
@@ -89,7 +92,7 @@ const DateTimeSelector: React.FC<DateTimeSelectorProps> = ({
   };
 
   const getAvailableTimeSlots = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = toISTDate(date);
     return timeSlots.filter(slot => slot.date === dateStr);
   };
 

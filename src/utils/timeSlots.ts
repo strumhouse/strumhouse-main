@@ -11,7 +11,7 @@
 // generateTimeSlots(serviceId, startDate, endDate, bookings, blocked, 'jampad')
 // findServiceConfig(serviceId, 'recording-studio')
 //
-import { addDays, format, isBefore, startOfDay } from 'date-fns';
+import { addDays, format, isBefore, startOfDay, parseISO } from 'date-fns';
 
 export interface TimeSlotConfig {
   serviceId: string;
@@ -61,8 +61,8 @@ export const BOOKING_RULES: { [key: string]: BookingRule } = {
 
 // Service configurations - these will be matched by name, not ID
 export const SERVICE_CONFIGS: { [key: string]: TimeSlotConfig } = {
-  'Jampad': {
-    serviceId: 'Jampad',
+  'Jampad Session': {
+    serviceId: 'Jampad Session',
     categoryId: 'jampad',
     startHour: 9, // 9 AM
     endHour: 22, // 10 PM
@@ -97,6 +97,16 @@ export const SERVICE_CONFIGS: { [key: string]: TimeSlotConfig } = {
 export const FALLBACK_CONFIGS: { [key: string]: TimeSlotConfig } = {
   'jampad': {
     serviceId: 'jampad',
+    categoryId: 'jampad',
+    startHour: 9,
+    endHour: 22,
+    slotDuration: 1,
+    advanceBookingHours: 2,
+    maxParticipants: 10,
+    availableDays: [1, 2, 3, 4, 5, 6, 7]
+  },
+  'jampad session': {
+    serviceId: 'jampad session',
     categoryId: 'jampad',
     startHour: 9,
     endHour: 22,
@@ -250,6 +260,7 @@ export const generateTimeSlots = (
   blockedSlots: any[] = [],
   categoryId?: string
 ): GeneratedTimeSlot[] => {
+  
   const config = findServiceConfig(serviceId, categoryId);
   if (!config) {
     console.error(`No configuration found for service: ${serviceId}`);
@@ -277,11 +288,12 @@ export const generateTimeSlots = (
         const endTime = `${(hour + config.slotDuration).toString().padStart(2, '0')}:00:00`;
         
         // Check if this slot is blocked by advance booking rules
-        const today = new Date();
-        const todayStr = format(today, 'yyyy-MM-dd');
+        const todayStr = getCurrentDateIST();
         
         // For recording services (24h advance), block current date
         const isBlockedByAdvanceRule = config.advanceBookingHours >= 24 && dateStr === todayStr;
+        
+
         
         // Check if slot is blocked by maintenance/events
         const isBlockedByEvent = blockedSlots.some(blocked => 
@@ -356,6 +368,18 @@ export const formatDate = (date: string | Date) => {
   if (!date) return 'N/A';
   const dateObj = typeof date === 'string' ? new Date(date) : date;
   return format(dateObj, 'MMMM d, yyyy');
+};
+
+// Helper function to get current date in local timezone
+export const getCurrentDateIST = (): string => {
+  const now = new Date();
+  return format(now, 'yyyy-MM-dd');
+};
+
+// Helper function to convert date to local timezone
+export const toISTDate = (date: Date | string): string => {
+  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+  return format(dateObj, 'yyyy-MM-dd');
 };
 
 export const formatTime = (time: string) => {
