@@ -288,12 +288,9 @@ export const generateTimeSlots = (
         const endTime = `${(hour + config.slotDuration).toString().padStart(2, '0')}:00:00`;
         
         // Check if this slot is blocked by advance booking rules
-        const todayStr = getCurrentDateIST();
-        
-        // For recording services (24h advance), block current date
-        const isBlockedByAdvanceRule = config.advanceBookingHours >= 24 && dateStr === todayStr;
-        
-
+        const slotDateTime = new Date(`${dateStr}T${startTime}`);
+        const bookingCutoffTime = new Date(currentTime.getTime() + config.advanceBookingHours * 60 * 60 * 1000);
+        const isBlockedByAdvanceRule = isBefore(slotDateTime, bookingCutoffTime);
         
         // Check if slot is blocked by maintenance/events
         const isBlockedByEvent = blockedSlots.some(blocked => 
