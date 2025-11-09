@@ -38,7 +38,7 @@ export const emailJSService = {
       };
 
       await emailjs.send(
-        'service_j0gfkjo', // Replace with your EmailJS service ID
+        'service_9w2k2kk', // Replace with your EmailJS service ID
         'template_bg0m3tw', // Replace with your EmailJS template ID
         templateParams,
         'j8NhvtgzIf0RXrB5U' // Replace with your EmailJS public key
