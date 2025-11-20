@@ -198,7 +198,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setLoading(true);
       // Dynamic redirect ensures it works on localhost and production
-      const redirectTo = `${window.location.origin}/auth/callback?next=/update-password`;
+      const redirectTo = `${window.location.origin}/update-password`;
       
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectTo,
