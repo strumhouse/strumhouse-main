@@ -19,8 +19,11 @@ export interface AuthContextType {
   signup: (name: string, phone: string, email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   loading: boolean;
+  // --- ADD THESE TWO LINES ---
+  resetPassword: (email: string) => Promise<boolean>;
+  updatePassword: (password: string) => Promise<boolean>;
 }
 
 export interface AuthProviderProps {
   children: React.ReactNode;
-} 
+}

@@ -20,6 +20,11 @@ import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import PaymentSuccess from './pages/PaymentSuccess';
 
+// --- 1. New Imports Added Here ---
+import ForgotPassword from './pages/ForgotPassword';
+import UpdatePassword from './pages/UpdatePassword';
+// ---------------------------------
+
 // Conditionally import TestPage only in development
 let TestPage: React.ComponentType | null = null;
 if (process.env.NODE_ENV === 'development') {
@@ -83,6 +88,13 @@ function AppRoutes() {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
           <Route path="/register" element={user ? <Navigate to="/" replace /> : <Register />} />
+          
+          {/* --- 2. New Routes Added Here --- */}
+          {/* These are public routes, so no ProtectedRoute wrapper needed */}
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/update-password" element={<UpdatePassword />} />
+          {/* -------------------------------- */}
+
           <Route path="/booking" element={<ProtectedRoute><BookingPage /></ProtectedRoute>} />
           <Route path="/dashboard" element={
             <ProtectedRoute>

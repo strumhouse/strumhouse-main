@@ -73,7 +73,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Fire initial session event manually (for SSR/CSR consistency)
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      // Simulate INITIAL_SESSION event
       if (mounted) {
         setLoading(true);
         setSession(session);
@@ -194,6 +193,55 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
+  // --- NEW FUNCTION: Reset Password ---
+  const resetPassword = useCallback(async (email: string): Promise<boolean> => {
+    try {
+      setLoading(true);
+      // Dynamic redirect ensures it works on localhost and production
+      const redirectTo = `${window.location.origin}/update-password`;
+      
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectTo,
+      });
+
+      if (error) {
+        toast.error(error.message);
+        return false;
+      }
+      
+      toast.success('Password reset link sent to your email!');
+      return true;
+    } catch (error) {
+      console.error('Reset password error:', error);
+      toast.error('Failed to send reset link.');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // --- NEW FUNCTION: Update Password ---
+  const updatePassword = useCallback(async (password: string): Promise<boolean> => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.updateUser({ password });
+
+      if (error) {
+        toast.error(error.message);
+        return false;
+      }
+
+      toast.success('Password updated successfully!');
+      return true;
+    } catch (error) {
+      console.error('Update password error:', error);
+      toast.error('Failed to update password.');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const logout = useCallback(async (): Promise<void> => {
     try {
       setLoading(true);
@@ -227,12 +275,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     signup,
     logout,
+    resetPassword, // Added here
+    updatePassword, // Added here
     loading,
-  }), [user, session, userProfile, login, signup, logout, loading]);
+  }), [user, session, userProfile, login, signup, logout, resetPassword, updatePassword, loading]);
 
   return (
     <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
-}; 
+};
