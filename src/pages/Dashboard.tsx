@@ -29,7 +29,7 @@ const Dashboard: React.FC = React.memo(() => {
       setError(null);
       setLoading(true);
       
-      // Set a fallback profile immediately
+      // Set fallback profile immediately
       const fallbackProfile = { 
         name: user?.user_metadata?.name || 'User', 
         email: user?.email || 'Unknown',
@@ -37,37 +37,32 @@ const Dashboard: React.FC = React.memo(() => {
       };
       setUserProfile(fallbackProfile);
       
-      try {
-        const profile = await userService.getCurrentUser();
-        if (profile) {
-          setUserProfile(profile);
-        } else {
-          // Profile not found - this is not necessarily an error in production
-          setUserProfile(null);
-        }
-      } catch (profileError) {
-        console.error('Dashboard: Error fetching user profile:', profileError);
-      }
+      // Parallelize all fetches
+      const [profile, userBookings, servicesData, categoriesData] = await Promise.all([
+        userService.getCurrentUser().catch(err => {
+          console.error('Dashboard: Error fetching user profile:', err);
+          return null;
+        }),
+        bookingService.getByUser(userId).catch(err => {
+          console.error('Dashboard: Error fetching bookings:', err);
+          return [];
+        }),
+        serviceService.getAll().catch(err => {
+          console.error('Dashboard: Error fetching services:', err);
+          return [];
+        }),
+        categoryService.getAll().catch(err => {
+          console.error('Dashboard: Error fetching categories:', err);
+          return [];
+        })
+      ]);
       
-      try {
-        const userBookings = await bookingService.getByUser(userId);
-        setBookings(userBookings);
-      } catch (bookingsError) {
-        console.error('Dashboard: Error fetching bookings:', bookingsError);
-        setBookings([]);
+      if (profile) {
+        setUserProfile(profile);
       }
-
-      // Fetch services and categories for booking details
-      try {
-        const [servicesData, categoriesData] = await Promise.all([
-          serviceService.getAll(),
-          categoryService.getAll()
-        ]);
-        setServices(servicesData);
-        setCategories(categoriesData);
-      } catch (dataError) {
-        console.error('Dashboard: Error fetching services/categories:', dataError);
-      }
+      setBookings(userBookings);
+      setServices(servicesData);
+      setCategories(categoriesData);
     } catch (error) {
       console.error('Dashboard: Unexpected error in fetchData:', error);
       setError(error instanceof Error ? error.message : 'Unknown error');

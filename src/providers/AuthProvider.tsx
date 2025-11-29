@@ -27,6 +27,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
 
   const fetchUserProfile = useCallback(async (userId: string, silent: boolean = false) => {
     try {
@@ -83,6 +84,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUserProfile(null);
         }
         setLoading(false);
+        setAuthReady(true);
       }
     })();
 
@@ -272,13 +274,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     session,
     userProfile,
     isAuthenticated: !!user,
+    authReady,
     login,
     signup,
     logout,
     resetPassword, // Added here
     updatePassword, // Added here
     loading,
-  }), [user, session, userProfile, login, signup, logout, resetPassword, updatePassword, loading]);
+  }), [user, session, userProfile, authReady, login, signup, logout, resetPassword, updatePassword, loading]);
 
   return (
     <AuthContext.Provider value={value}>

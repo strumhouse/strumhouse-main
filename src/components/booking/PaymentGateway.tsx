@@ -31,6 +31,8 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
   const [agreed, setAgreed] = useState(false);
+  const [pollingBookingStatus, setPollingBookingStatus] = useState(false);
+  const [bookingConfirmed, setBookingConfirmed] = useState(false);
 
   useEffect(() => {
     createPaymentOrder();
@@ -51,31 +53,81 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
     }
   };
 
+  // Poll booking status until confirmed or timeout
+  const pollBookingStatus = async () => {
+    const maxAttempts = 30; // 30 seconds max
+    let attempts = 0;
+
+    const poll = async () => {
+      if (attempts >= maxAttempts) {
+        setPollingBookingStatus(false);
+        setError('Payment received but booking confirmation is taking longer than expected. Please check your dashboard.');
+        return;
+      }
+
+      try {
+        const booking = await paymentService.getBookingDetails(bookingId);
+        
+        // Fix: Properly check status and stop polling
+        if (booking && booking.status === 'confirmed' && booking.payment_status === 'paid') {
+          setBookingConfirmed(true);
+          setPollingBookingStatus(false); // Stop polling
+          setPaymentStatus('success');
+          
+          // Call success callback
+          setTimeout(() => {
+            onPaymentSuccess({ booking_id: bookingId });
+          }, 2000);
+          return; // Exit polling
+        }
+        
+        // If still pending, continue polling
+        if (booking && (booking.status !== 'confirmed' || booking.payment_status !== 'paid')) {
+          attempts++;
+          setTimeout(poll, 1000); // Poll every second
+          return;
+        }
+      } catch (err) {
+        console.error('Error polling booking status:', err);
+        attempts++;
+        // Continue polling on error (might be transient)
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 1000);
+        } else {
+          setPollingBookingStatus(false);
+          setError('Unable to confirm booking status. Please check your dashboard.');
+        }
+        return;
+      }
+    };
+
+    poll();
+  };
+
   const handlePaymentSuccess = async (response: PaymentResponse) => {
     try {
       setPaymentStatus('processing');
       
-      // Verify payment
+      // Verify payment (lightweight check)
       const isVerified = await paymentService.verifyPayment(response);
       
       if (!isVerified) {
         throw new Error('Payment verification failed');
       }
 
-      // Save payment details
-      const paymentDetails = await paymentService.savePaymentDetails(
-        bookingId,
-        response,
-        amount
-      );
+      // Save payment details (non-blocking)
+      try {
+        await paymentService.savePaymentDetails(bookingId, response, amount);
+      } catch (saveError) {
+        console.error('Error saving payment details:', saveError);
+        // Continue - webhook will handle this
+      }
 
-      // Update booking payment status
-      await paymentService.updateBookingPaymentStatus(bookingId, 'paid');
+      // Start polling for booking confirmation (webhook will finalize)
+      setPollingBookingStatus(true);
+      pollBookingStatus();
 
-      // Update booking status to confirmed after successful payment
-      await paymentService.updateBookingStatus(bookingId, 'confirmed');
-
-      // Send email notification to admin
+      // Send email notification (non-blocking)
       try {
         const bookingData = await paymentService.getBookingDetails(bookingId);
         if (bookingData) {
@@ -98,22 +150,13 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
         }
       } catch (emailError) {
         console.error('Error sending email notification:', emailError);
-        // Don't fail the payment process if email fails
       }
-
-      setPaymentStatus('success');
-      
-      // Call success callback after a short delay
-      setTimeout(() => {
-        onPaymentSuccess(paymentDetails);
-      }, 2000);
 
     } catch (err) {
       console.error('Payment processing error:', err);
       setPaymentStatus('failed');
       setError('Payment processing failed. Please try again.');
       
-      // Update booking payment status to failed
       try {
         await paymentService.updateBookingPaymentStatus(bookingId, 'failed');
       } catch (updateError) {
@@ -157,7 +200,7 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
     );
   }
 
-  if (paymentStatus === 'success') {
+  if (paymentStatus === 'success' || bookingConfirmed) {
     return (
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
@@ -182,6 +225,25 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
           <span className="text-sm">Redirecting to booking confirmation...</span>
         </div>
+      </motion.div>
+    );
+  }
+
+  if (pollingBookingStatus) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-gray-900 rounded-lg p-8 text-center"
+      >
+        <div className="w-16 h-16 bg-yellow-500 rounded-full flex items-center justify-center mx-auto mb-6">
+          <Loader2 className="w-8 h-8 text-white animate-spin" />
+        </div>
+        
+        <h3 className="text-2xl font-bold text-white mb-4">Payment Received!</h3>
+        <p className="text-gray-300 mb-6">
+          Waiting for booking confirmation...
+        </p>
       </motion.div>
     );
   }
