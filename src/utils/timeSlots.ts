@@ -252,6 +252,22 @@ export const findServiceConfig = (serviceId: string, categoryId?: string): TimeS
   };
 };
 
+/**
+ * Check if two time ranges overlap (string-based, no timezone conversion)
+ * Proper overlap: startA < endB && startB < endA
+ * Assumes times are in HH:MM:SS format and same date
+ */
+export function timesOverlap(
+  startA: string,
+  endA: string,
+  startB: string,
+  endB: string
+): boolean {
+  // Simple string comparison works for HH:MM:SS format
+  // Proper overlap: startA < endB && startB < endA
+  return startA < endB && startB < endA;
+}
+
 export const generateTimeSlots = (
   serviceId: string,
   startDate: Date,
@@ -293,11 +309,17 @@ export const generateTimeSlots = (
         const isBlockedByAdvanceRule = isBefore(slotDateTime, bookingCutoffTime);
         
         // Check if slot is blocked by maintenance/events
-        const isBlockedByEvent = blockedSlots.some(blocked => 
-          blocked.date === dateStr &&
-          blocked.start_time <= startTime &&
-          blocked.end_time >= endTime
-        );
+        // Use proper overlap logic instead of containment
+        const isBlockedByEvent = blockedSlots.some(blocked => {
+          if (blocked.date !== dateStr) return false;
+          // Use proper overlap logic: startA < endB && startB < endA
+          return timesOverlap(
+            startTime,
+            endTime,
+            blocked.start_time,
+            blocked.end_time
+          );
+        });
         
         // Check if slot is already booked (only count confirmed bookings)
         const isBooked = existingBookings.some(bookingSlot => {

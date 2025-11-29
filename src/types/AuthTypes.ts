@@ -15,11 +15,11 @@ export interface AuthContextType {
   session: Session | null;
   userProfile: UserProfile | null;
   isAuthenticated: boolean;
+  authReady: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   signup: (name: string, phone: string, email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   loading: boolean;
-  // --- ADD THESE TWO LINES ---
   resetPassword: (email: string) => Promise<boolean>;
   updatePassword: (password: string) => Promise<boolean>;
 }

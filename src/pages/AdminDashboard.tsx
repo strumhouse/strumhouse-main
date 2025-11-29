@@ -32,7 +32,7 @@ type AdminTab = 'overview' | 'bookings' | 'services' | 'addons' | 'categories' |
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user, logout, loading: authLoading, userProfile } = useAuth();
+  const { user, logout, loading: authLoading, userProfile, authReady } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -120,19 +120,62 @@ const AdminDashboard: React.FC = () => {
   const [bookingDateFilter, setBookingDateFilter] = useState<string>('');
 
   useEffect(() => {
-    if (!authLoading && user) {
-      if (user.role !== 'admin') {
-        navigate('/dashboard');
-        toast.error('Access denied. Admin privileges required.');
-        return;
-      }
-      fetchDashboardData();
+    if (!authReady) return;
+
+    if (!user) {
+      return;
     }
-  }, [authLoading, user, navigate]);
+
+    if (user.role !== 'admin') {
+      navigate('/dashboard');
+      toast.error('Access denied. Admin privileges required.');
+      return;
+    }
+
+    fetchDashboardData();
+  }, [authReady, user, navigate]);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      
+      // Fetch summary from API (cached server-side)
+      const summaryResponse = await fetch('/api/admin/summary');
+
+      let stats = {
+        totalBookings: 0,
+        pendingBookings: 0,
+        confirmedBookings: 0,
+        totalRevenue: 0,
+        totalUsers: 0,
+        totalServices: 0,
+        blockedSlots: 0
+      };
+
+      if (summaryResponse.ok) {
+        const text = await summaryResponse.text();
+        console.log('RAW /api/admin/summary response:', text);
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed && typeof parsed === 'object') {
+            stats = {
+              totalBookings: parsed.totalBookings ?? 0,
+              pendingBookings: parsed.pendingBookings ?? 0,
+              confirmedBookings: parsed.confirmedBookings ?? 0,
+              totalRevenue: parsed.totalRevenue ?? 0,
+              totalUsers: parsed.totalUsers ?? 0,
+              totalServices: parsed.totalServices ?? 0,
+              blockedSlots: parsed.blockedSlots ?? 0,
+            };
+          }
+        } catch (parseErr) {
+          console.error('AdminDashboard: summary JSON parse failed, raw response:', text);
+        }
+      }
+
+      setStats(stats);
+
+      // Lazy load detailed data only when needed
       const [allBookings, allServices, allCategories, allUsers] = await Promise.all([
         bookingService.getAll(),
         serviceService.getAll(),
@@ -144,20 +187,6 @@ const AdminDashboard: React.FC = () => {
       setServices(allServices);
       setCategories(allCategories);
       setUsers(allUsers);
-
-      const totalRevenue = allBookings
-        .filter(b => b.payment_status === 'paid')
-        .reduce((sum, b) => sum + (b.total_amount || 0), 0);
-
-      setStats({
-        totalBookings: allBookings.length,
-        pendingBookings: allBookings.filter(b => b.status === 'pending').length,
-        confirmedBookings: allBookings.filter(b => b.status === 'confirmed').length,
-        totalRevenue,
-        totalUsers: allUsers.length,
-        totalServices: allServices.length,
-        blockedSlots: blockedSlots.length
-      });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       toast.error('Failed to load dashboard data');

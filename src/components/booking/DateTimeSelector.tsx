@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Calendar, Clock, AlertCircle} from 'lucide-react';
 import { blockedSlotService, bookingSlotService } from '../../lib/database';
 import { generateTimeSlots, getAvailableDates, findServiceConfig, getCurrentDateIST, toISTDate } from '../../utils/timeSlots';
+import { useBookingContext } from '../../contexts/BookingProvider';
 import LoadingSpinner from '../UI/LoadingSpinner';
 
 interface DateTimeSelectorProps {
@@ -37,6 +38,7 @@ const DateTimeSelector: React.FC<DateTimeSelectorProps> = ({
   onBack, 
   onNext 
 }) => {
+  const { slotsInvalidated } = useBookingContext();
   const [timeSlots, setTimeSlots] = useState<GeneratedTimeSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +87,7 @@ const DateTimeSelector: React.FC<DateTimeSelectorProps> = ({
     if (serviceId) {
       fetchData();
     }
-  }, [serviceId]);
+  }, [serviceId, slotsInvalidated]); // Add slotsInvalidated to dependencies
 
   const getAvailableDatesForService = () => {
     return getAvailableDates(serviceId, 30, categoryId);

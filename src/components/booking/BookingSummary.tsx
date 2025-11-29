@@ -155,8 +155,6 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
       const end_time = sortedSlots[sortedSlots.length - 1].endTime;
       const duration = selectedSlots.length;
 
-      // Note: start_time/end_time/duration in bookings is just a summary for display.
-      // Actual slot-level logic is enforced via booking_slots table.
       const bookingData = {
         user_id: user.id,
         customer_name: customerDetails.name,
@@ -169,32 +167,41 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
         end_time,
         duration,
         participants: customerDetails.attendees || 1,
-        // Supabase type expects string[], but DB is jsonb. Use proper type assertion.
         add_ons: selectedAddOns as Record<string, number>,
         total_amount: calculateTotalCost(),
         advance_amount: calculateAdvanceAmount(),
-        status: 'pending' as 'pending',
-        payment_status: 'pending' as 'pending',
         notes: customerDetails.specialRequirements || null,
-        google_calendar_event_id: null
+        google_calendar_event_id: null,
+        // Include slots for server-side validation
+        slots: selectedSlots.map(slot => ({
+          date: selectedDate.toISOString().split('T')[0],
+          start_time: slot.startTime,
+          end_time: slot.endTime
+        }))
       };
 
-      const booking = await bookingService.create(bookingData);
-      if (booking) {
-        // Insert each slot into booking_slots table
-        for (const slot of selectedSlots) {
-          await bookingService.createSlot({
-            booking_id: booking.id,
-            date: selectedDate.toISOString().split('T')[0],
-            start_time: slot.startTime,
-            end_time: slot.endTime
-          });
+      // Call server-side booking creation API
+      const response = await fetch('/api/bookings/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(bookingData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (response.status === 409) {
+          setError(`Slot conflict: ${errorData.conflicts?.join(', ') || 'Selected slots are no longer available'}`);
+        } else {
+          setError(errorData.error || 'Failed to create booking. Please try again.');
         }
-        setBookingId(booking.id);
-        setShowPayment(true);
-      } else {
-        throw new Error('Failed to create booking');
+        return;
       }
+
+      const result = await response.json();
+      setBookingId(result.booking_id);
+      setShowPayment(true);
     } catch (err) {
       console.error('Error creating booking:', err);
       setError('Failed to create booking. Please try again.');

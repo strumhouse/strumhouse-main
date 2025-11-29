@@ -23,6 +23,7 @@ import PaymentSuccess from './pages/PaymentSuccess';
 // --- 1. New Imports Added Here ---
 import ForgotPassword from './pages/ForgotPassword';
 import UpdatePassword from './pages/UpdatePassword';
+import { BookingProvider } from './contexts/BookingProvider';
 // ---------------------------------
 
 // Conditionally import TestPage only in development
@@ -156,14 +157,16 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <Router
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true
-          }}
-        >
-          <AppRoutes />
-        </Router>
+        <BookingProvider>
+          <Router
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true
+            }}
+          >
+            <AppRoutes />
+          </Router>
+        </BookingProvider>
       </AuthProvider>
     </ErrorBoundary>
   );
