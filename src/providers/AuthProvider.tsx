@@ -252,7 +252,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUserProfile(null);
       const { error } = await supabase.auth.signOut();
       if (error) {
-        throw error;
+        console.warn('Supabase signOut error during logout (ignored):', error);
+        // We still proceed with local cleanup + redirect to ensure user is logged out client-side
       }
       try {
         localStorage.clear();
