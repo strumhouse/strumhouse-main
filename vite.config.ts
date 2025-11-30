@@ -40,7 +40,9 @@ module.exports = defineConfig({
   },
   css: {
     postcss: {
-      plugins: [require('tailwindcss'), require('autoprefixer')],
+      plugins: [require('@tailwindcss/postcss7-compat'),
+        require('autoprefixer')
+      ],
     },
   }
 });
