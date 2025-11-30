@@ -1,25 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
-// Initialize Supabase client
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
   process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Main handler function
+/**
+ * Verifies a Razorpay payment and updates the payment and booking status
+ * Handles both direct verification and webhook scenarios
+ */
 export default async function handler(req, res) {
-
-  /**
-   * Verifies a Razorpay payment and updates the payment and booking status
-   * Handles both direct verification and webhook scenarios
-   */
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
-    return res.status(405).json({ 
-      error: 'Method not allowed',
-      verified: false 
-    });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
@@ -78,15 +72,6 @@ export default async function handler(req, res) {
     // 2. If not found, try to find by booking ID from order notes
     if (!payment) {
       console.log(`[VerifyPayment] Payment not found by order_id, trying to fetch from Razorpay...`);
-      
-      if (!process.env.VITE_RAZORPAY_KEY_ID || !process.env.VITE_RAZORPAY_KEY_SECRET) {
-        console.error('[VerifyPayment] Razorpay credentials not configured');
-        return res.status(500).json({ 
-          error: 'Payment verification configuration error',
-          verified: false 
-        });
-      }
-      
       try {
         const auth = Buffer.from(
           `${process.env.VITE_RAZORPAY_KEY_ID}:${process.env.VITE_RAZORPAY_KEY_SECRET}`
