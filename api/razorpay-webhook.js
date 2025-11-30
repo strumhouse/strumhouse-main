@@ -1,16 +1,16 @@
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+);
+
 export const config = {
   api: {
     bodyParser: false,
   },
 };
-
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
-);
 
 const EVENT_STATUS_MAP = {
   'payment.captured': { payment: 'captured', booking: 'paid', confirmBooking: true },
@@ -19,112 +19,161 @@ const EVENT_STATUS_MAP = {
 };
 
 async function rawBody(req) {
-  return new Promise(resolve => {
-    let chunks = [];
-    req.on('data', chunk => chunks.push(chunk));
-    req.on('end', () => resolve(Buffer.concat(chunks)));
+  return new Promise((resolve, reject) => {
+    let data = [];
+    req.on('data', chunk => data.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(data)));
+    req.on('error', err => reject(err));
   });
 }
 
-async function logEvent(id) {
-  if (!id) {
-    console.warn("[Webhook] Event ID missing; skipping dedupe protection");
+async function logEvent(eventId, eventType, status, details = {}) {
+  if (!eventId) {
+    console.warn('[Webhook] Missing event ID, skipping deduplication');
     return { duplicate: false };
   }
 
+  const logEntry = {
+    event_id: eventId,
+    event_type: eventType,
+    status,
+    details: JSON.stringify(details),
+    created_at: new Date().toISOString()
+  };
+
   const { error } = await supabase
     .from('webhook_logs')
-    .insert({ event_id: id });
+    .insert(logEntry);
 
-  if (error && error.code === "23505") {
+  if (error && error.code === '23505') {
+    console.log(`[Webhook] Duplicate event ${eventId} skipped`);
     return { duplicate: true };
+  } else if (error) {
+    console.error('[Webhook] Error logging event:', error);
+    return { duplicate: false, error };
   }
+
+  console.log(`[Webhook] Logged event ${eventId} (${eventType})`);
   return { duplicate: false };
 }
 
-async function updateRecords(paymentRecord, updateSet) {
-  if (!paymentRecord) return;
-
+async function updateBookingAndPayment(orderId, paymentId, statuses) {
   const timestamp = new Date().toISOString();
-
-  await supabase
+  
+  // Update payment status first
+  const { data: payment, error: paymentError } = await supabase
     .from('payments')
     .update({
-      status: updateSet.payment,
-      razorpay_payment_id: updateSet.razorpayPaymentId,
+      status: statuses.payment,
+      razorpay_payment_id: paymentId || undefined,
       updated_at: timestamp
     })
-    .eq('id', paymentRecord.id);
+    .eq('razorpay_order_id', orderId)
+    .select('id, booking_id')
+    .single();
 
-  await supabase
-    .from('bookings')
-    .update({
-      payment_status: updateSet.booking,
-      status: updateSet.confirmBooking ? 'confirmed' : undefined,
-      updated_at: timestamp
-    })
-    .eq('id', paymentRecord.booking_id);
+  if (paymentError) {
+    console.error('[Webhook] Payment update error:', paymentError);
+    throw new Error(`Payment update failed: ${paymentError.message}`);
+  }
 
-  console.log("[Webhook] DB updated successfully");
-}
+  if (!payment) {
+    console.warn(`[Webhook] No payment found for order: ${orderId}`);
+    return false;
+  }
 
-async function processPayment(entity, type) {
-  if (!entity || !entity.order_id) return;
+  // Update booking status if payment was successful
+  if (statuses.confirmBooking) {
+    const { error: bookingError } = await supabase
+      .from('bookings')
+      .update({
+        status: 'confirmed',
+        payment_status: 'paid',
+        updated_at: timestamp
+      })
+      .eq('id', payment.booking_id);
 
-  const { data: record } = await supabase
-    .from('payments')
-    .select('id, booking_id, status')
-    .eq('razorpay_order_id', entity.order_id)
-    .maybeSingle();
+    if (bookingError) {
+      console.error('[Webhook] Booking update error:', bookingError);
+      throw new Error(`Booking update failed: ${bookingError.message}`);
+    }
+  }
 
-  if (!record) return;
-
-  if (record.status === type.payment) return; 
-
-  await updateRecords(record, {
-    payment: type.payment,
-    booking: type.booking,
-    confirmBooking: type.confirmBooking,
-    razorpayPaymentId: entity.id
-  });
+  console.log(`[Webhook] Successfully updated payment ${payment.id} and booking ${payment.booking_id}`);
+  return true;
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST')
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
-
-  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
-  const raw = await rawBody(req);
-  const signature = req.headers['x-razorpay-signature'];
-
-  const expected = crypto
-    .createHmac('sha256', secret)
-    .update(raw)
-    .digest('hex');
-
-  if (signature !== expected) {
-    console.error("[Webhook] Signature mismatch!");
-    return res.status(400).json({ error: "Invalid signature" });
   }
 
-  const payload = JSON.parse(raw.toString());
-  const eventId = payload.id;
-  const eventType = payload.event;
+  try {
+    // Verify webhook signature
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      throw new Error('Webhook secret not configured');
+    }
 
-  console.log(`Webhook: ${eventType} | ID: ${eventId}`);
+    const raw = await rawBody(req);
+    const signature = req.headers['x-razorpay-signature'];
+    const payload = JSON.parse(raw.toString());
 
-  // Respond immediately once verified 🚀 (Razorpay requires fast response)
-  res.status(200).json({ status: "received" });
+    // Log the incoming webhook
+    console.log('[Webhook] Received event:', {
+      event: payload.event,
+      id: payload.id,
+      entity: payload.payload?.payment?.entity?.id
+    });
 
-  const { duplicate } = await logEvent(eventId);
-  if (duplicate) return console.log("[Webhook] Duplicate ignored");
+    // Verify signature
+    const expectedSignature = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(raw)
+      .digest('hex');
 
-  const entity = payload?.payload?.payment?.entity;
-  const typeMap = EVENT_STATUS_MAP[eventType];
+    if (signature !== expectedSignature) {
+      await logEvent(payload.id, payload.event, 'signature_mismatch', {
+        received: signature,
+        expected: expectedSignature
+      });
+      return res.status(400).json({ error: 'Invalid signature' });
+    }
 
-  if (typeMap) {
-    await processPayment(entity, typeMap);
-  } else {
-    console.log("[Webhook] Ignored Event:", eventType);
+    // Acknowledge webhook immediately
+    res.status(200).json({ status: 'received' });
+
+    const { id: eventId, event: eventType, payload: eventPayload } = payload;
+    const entity = eventPayload?.payment?.entity || eventPayload?.refund?.entity;
+
+    // Check for duplicate event
+    const { duplicate } = await logEvent(eventId, eventType, 'received');
+    if (duplicate) return;
+
+    // Process the event
+    const statuses = EVENT_STATUS_MAP[eventType];
+    if (!statuses) {
+      console.log(`[Webhook] Unhandled event type: ${eventType}`);
+      return;
+    }
+
+    if (!entity?.order_id) {
+      console.error('[Webhook] Missing order_id in payload');
+      return;
+    }
+
+    await updateBookingAndPayment(
+      entity.order_id,
+      entity.id,
+      statuses
+    );
+
+    console.log(`[Webhook] Successfully processed ${eventType} for order ${entity.order_id}`);
+  } catch (error) {
+    console.error('[Webhook] Error processing webhook:', error);
+    if (!res.headersSent) {
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   }
 }
