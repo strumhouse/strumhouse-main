@@ -80,22 +80,72 @@ async function updatePaymentAndBooking(paymentRecord, updates) {
 
 // Handle payment event
 async function handlePaymentEvent(paymentEntity, targetStatuses) {
-  if (!paymentEntity) return;
+  if (!paymentEntity) {
+    console.error('[Webhook] Missing payment entity in payload');
+    return;
+  }
 
-  const { data: paymentRecord } = await supabase
+  console.log(`[Webhook] Processing payment event for order: ${paymentEntity.order_id}, status: ${targetStatuses.payment}`);
+
+  // Find the payment record by Razorpay order ID
+  const { data: paymentRecord, error: paymentError } = await supabase
     .from('payments')
-    .select('id, booking_id')
+    .select('id, booking_id, status')
     .eq('razorpay_order_id', paymentEntity.order_id)
     .maybeSingle();
 
-  if (!paymentRecord) return;
+  if (paymentError) {
+    console.error('[Webhook] Error fetching payment record:', paymentError);
+    return;
+  }
 
-  await updatePaymentAndBooking(paymentRecord, {
-    paymentStatus: targetStatuses.payment,
-    bookingStatus: targetStatuses.booking,
-    razorpayPaymentId: paymentEntity.id,
-    confirmBooking: targetStatuses.confirmBooking || false,
-  });
+  if (!paymentRecord) {
+    console.warn('[Webhook] No payment record found for order:', paymentEntity.order_id);
+    return;
+  }
+
+  // Skip if payment is already in the target state
+  if (paymentRecord.status === targetStatuses.payment) {
+    console.log(`[Webhook] Payment ${paymentRecord.id} already in state: ${targetStatuses.payment}`);
+    return;
+  }
+
+  // Update payment status
+  const { error: updatePaymentError } = await supabase
+    .from('payments')
+    .update({
+      status: targetStatuses.payment,
+      razorpay_payment_id: paymentEntity.id,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', paymentRecord.id);
+
+  if (updatePaymentError) {
+    console.error('[Webhook] Error updating payment status:', updatePaymentError);
+    return;
+  }
+
+  // Update booking status based on payment status
+  const bookingUpdate = {
+    payment_status: targetStatuses.payment === 'captured' ? 'paid' : targetStatuses.payment,
+    updated_at: new Date().toISOString()
+  };
+
+  // Only update booking status to confirmed for successful payments
+  if (targetStatuses.payment === 'captured') {
+    bookingUpdate.status = 'confirmed';
+  }
+
+  const { error: updateBookingError } = await supabase
+    .from('bookings')
+    .update(bookingUpdate)
+    .eq('id', paymentRecord.booking_id);
+
+  if (updateBookingError) {
+    console.error('[Webhook] Error updating booking status:', updateBookingError);
+  } else {
+    console.log(`[Webhook] Updated booking ${paymentRecord.booking_id} with:`, bookingUpdate);
+  }
 }
 
 // Handle refund event
