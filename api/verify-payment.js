@@ -6,6 +6,10 @@ const supabase = createClient(
   process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
 );
 
+/**
+ * Verifies a Razorpay payment and updates the payment and booking status
+ * Handles both direct verification and webhook scenarios
+ */
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -58,19 +62,55 @@ export default async function handler(req, res) {
 
     console.log('[VerifyPayment] Signature verified, processing payment...');
 
-    // 1. Check if payment is already processed
-    const { data: payment, error: paymentError } = await supabase
+    // 1. First try to find payment by razorpay_order_id
+    let { data: payment, error: paymentError } = await supabase
       .from('payments')
       .select('id, booking_id, status, razorpay_payment_id')
       .eq('razorpay_order_id', razorpay_order_id)
       .maybeSingle();
 
-    if (paymentError) {
-      console.error('[VerifyPayment] Error fetching payment:', paymentError);
-      return res.status(500).json({ 
-        error: 'Error verifying payment',
-        verified: false 
-      });
+    // 2. If not found, try to find by booking ID from order notes
+    if (!payment) {
+      console.log(`[VerifyPayment] Payment not found by order_id, trying to fetch from Razorpay...`);
+      try {
+        const auth = Buffer.from(
+          `${process.env.VITE_RAZORPAY_KEY_ID}:${process.env.VITE_RAZORPAY_KEY_SECRET}`
+        ).toString('base64');
+
+        const orderResponse = await fetch(`https://api.razorpay.com/v1/orders/${razorpay_order_id}`, {
+          headers: {
+            'Authorization': `Basic ${auth}`
+          }
+        });
+
+        if (orderResponse.ok) {
+          const orderData = await orderResponse.json();
+          const bookingId = orderData.notes?.booking_id;
+          
+          if (bookingId) {
+            console.log(`[VerifyPayment] Found booking ID in Razorpay order notes: ${bookingId}`);
+            const { data: paymentByBooking } = await supabase
+              .from('payments')
+              .select('id, booking_id, status, razorpay_payment_id')
+              .eq('booking_id', bookingId)
+              .maybeSingle();
+
+            if (paymentByBooking) {
+              payment = paymentByBooking;
+              // Update the payment record with the razorpay_order_id for future reference
+              await supabase
+                .from('payments')
+                .update({
+                  razorpay_order_id: razorpay_order_id,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', payment.id);
+            }
+          }
+        }
+      } catch (fetchError) {
+        console.error('[VerifyPayment] Error fetching order from Razorpay:', fetchError);
+      }
     }
 
     if (!payment) {
@@ -81,7 +121,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 2. If payment is already captured, return current status
+    // 3. If payment is already captured, return current status
     if (payment.status === 'captured') {
       console.log(`[VerifyPayment] Payment ${payment.id} already captured`);
       return res.status(200).json({
@@ -95,12 +135,13 @@ export default async function handler(req, res) {
 
     const timestamp = new Date().toISOString();
     
-    // 3. Update payment status
+    // 4. Update payment status
     const { data: updatedPayment, error: updateError } = await supabase
       .from('payments')
       .update({
         status: 'captured',
         razorpay_payment_id: razorpay_payment_id,
+        razorpay_order_id: razorpay_order_id, // Ensure this is set
         updated_at: timestamp
       })
       .eq('id', payment.id)
@@ -115,7 +156,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 4. Update booking status
+    // 5. Update booking status
     const { error: bookingError } = await supabase
       .from('bookings')
       .update({
@@ -135,7 +176,7 @@ export default async function handler(req, res) {
 
     console.log(`[VerifyPayment] Successfully updated payment ${payment.id} and booking ${payment.booking_id}`);
 
-    // 5. Return success response
+    // 6. Return success response
     return res.status(200).json({
       verified: true,
       payment_id: updatedPayment.id,
