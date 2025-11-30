@@ -5,45 +5,33 @@ const supabase = createClient(
   process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
 );
 
-// String-based overlap check
-function timesOverlapString(startA, endA, startB, endB) {
+// Helper to check overlapping time slots (HH:MM:SS format)
+function timesOverlap(startA, endA, startB, endB) {
   return startA < endB && startB < endA;
 }
 
-async function isSlotFreeForBooking(bookingData) {
+// Check if booking slot is available
+async function isSlotFree(service_id, slots) {
   const conflicts = [];
-  const slotsToCheck = bookingData.slots || [{
-    date: bookingData.date,
-    start_time: bookingData.start_time,
-    end_time: bookingData.end_time
-  }];
 
-  console.log('[Booking] Checking slot availability:', slotsToCheck);
-
-  for (const slot of slotsToCheck) {
-    // Fetch confirmed booking slots
-    const { data: bookingSlots, error: bookingError } = await supabase
+  for (const slot of slots) {
+    // Check existing bookings
+    const { data: bookedSlots, error: bookingError } = await supabase
       .from('booking_slots')
-      .select(`*, bookings!inner(status, payment_status, service_id)`)
+      .select(`
+        *,
+        bookings!inner(service_id, status, payment_status)
+      `)
       .eq('date', slot.date)
-      .eq('bookings.service_id', bookingData.service_id)
+      .eq('bookings.service_id', service_id)
       .eq('bookings.status', 'confirmed')
       .eq('bookings.payment_status', 'paid');
 
-    if (bookingError) {
-      console.error('[Booking] Error fetching booking slots:', bookingError);
-      conflicts.push('Error checking booking availability');
-      continue;
-    }
+    if (bookingError) throw new Error(bookingError.message);
 
-    if (bookingSlots?.length) {
-      for (const existingSlot of bookingSlots) {
-        if (timesOverlapString(
-          slot.start_time, slot.end_time,
-          existingSlot.start_time, existingSlot.end_time
-        )) {
-          conflicts.push(`Time slot ${slot.start_time}-${slot.end_time} on ${slot.date} is already booked`);
-        }
+    for (const booked of bookedSlots || []) {
+      if (timesOverlap(slot.start_time, slot.end_time, booked.start_time, booked.end_time)) {
+        conflicts.push(`Slot ${slot.start_time}-${slot.end_time} on ${slot.date} is already booked`);
       }
     }
 
@@ -53,20 +41,11 @@ async function isSlotFreeForBooking(bookingData) {
       .select('*')
       .eq('date', slot.date);
 
-    if (blockedError) {
-      console.error('[Booking] Error fetching blocked slots:', blockedError);
-      conflicts.push('Error checking blocked slots');
-      continue;
-    }
+    if (blockedError) throw new Error(blockedError.message);
 
-    if (blockedSlots?.length) {
-      for (const blocked of blockedSlots) {
-        if (timesOverlapString(
-          slot.start_time, slot.end_time,
-          blocked.start_time, blocked.end_time
-        )) {
-          conflicts.push(`Time slot ${slot.start_time}-${slot.end_time} on ${slot.date} is blocked (${blocked.reason || 'No reason provided'})`);
-        }
+    for (const blocked of blockedSlots || []) {
+      if (timesOverlap(slot.start_time, slot.end_time, blocked.start_time, blocked.end_time)) {
+        conflicts.push(`Slot ${slot.start_time}-${slot.end_time} on ${slot.date} is blocked`);
       }
     }
   }
@@ -75,72 +54,71 @@ async function isSlotFreeForBooking(bookingData) {
 }
 
 export default async function handler(req, res) {
-  console.log('[Booking] Request received:', req.body);
-
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const bookingData = req.body;
+
+  // Required fields
+  const requiredFields = [
+    'user_id', 'service_id', 'customer_name', 'customer_email',
+    'date', 'start_time', 'end_time', 'total_amount', 'advance_amount'
+  ];
+  const missingFields = requiredFields.filter(f => !bookingData[f]);
+  if (missingFields.length > 0) {
+    return res.status(400).json({ error: 'Missing required fields', missingFields });
+  }
+
   try {
-    const bookingData = req.body;
-
-    // Validate required fields (merged)
-    const requiredFields = [
-      'user_id',
-      'service_id',
-      'customer_name',
-      'customer_email',
-      'date',
-      'start_time',
-      'end_time',
-      'total_amount',
-      'advance_amount'
-    ];
-
-    const missingFields = requiredFields.filter(field => !bookingData[field] && bookingData[field] !== 0);
-    if (missingFields.length > 0) {
-      return res.status(400).json({ 
-        error: 'Missing required fields',
-        missingFields,
-        receivedData: Object.keys(bookingData)
-      });
-    }
-
-    // Check slot availability
-    const { free, conflicts } = await isSlotFreeForBooking(bookingData);
-    if (!free) {
-      return res.status(409).json({
-        error: 'Slot conflict',
-        message: conflicts.join('; '),
-        conflicts,
-        requestedSlot: {
-          date: bookingData.date,
-          start_time: bookingData.start_time,
-          end_time: bookingData.end_time
-        }
-      });
-    }
-
-    // Verify foreign keys exist
+    // Validate foreign keys
     const { data: userExists } = await supabase
       .from('users')
       .select('id')
       .eq('id', bookingData.user_id)
       .maybeSingle();
-    if (!userExists) return res.status(400).json({ error: 'Invalid user_id', message: 'User does not exist' });
+    if (!userExists) return res.status(400).json({ error: 'Invalid user_id' });
 
     const { data: serviceExists } = await supabase
       .from('services')
       .select('id')
       .eq('id', bookingData.service_id)
       .maybeSingle();
-    if (!serviceExists) return res.status(400).json({ error: 'Invalid service_id', message: 'Service does not exist' });
+    if (!serviceExists) return res.status(400).json({ error: 'Invalid service_id' });
 
-    // Create booking
+    // Prepare slots
+    const slots = bookingData.slots || [{
+      date: bookingData.date,
+      start_time: bookingData.start_time,
+      end_time: bookingData.end_time
+    }];
+
+    // Check availability
+    const { free, conflicts } = await isSlotFree(bookingData.service_id, slots);
+    if (!free) {
+      return res.status(409).json({ error: 'Slot conflict', conflicts });
+    }
+
+    // Insert booking
     const { data: booking, error: bookingError } = await supabase
       .from('bookings')
       .insert({
-        ...bookingData,
+        user_id: bookingData.user_id,
+        service_id: bookingData.service_id,
+        customer_name: bookingData.customer_name,
+        customer_email: bookingData.customer_email,
+        customer_phone: bookingData.customer_phone,
+        category_id: bookingData.category_id,
+        date: bookingData.date,
+        start_time: bookingData.start_time,
+        end_time: bookingData.end_time,
+        duration: bookingData.duration,
+        participants: bookingData.participants,
+        add_ons: bookingData.add_ons,
+        total_amount: bookingData.total_amount,
+        advance_amount: bookingData.advance_amount,
+        notes: bookingData.notes,
+        google_calendar_event_id: bookingData.google_calendar_event_id,
         status: 'pending',
         payment_status: 'pending',
         created_at: new Date().toISOString(),
@@ -148,15 +126,11 @@ export default async function handler(req, res) {
       })
       .select()
       .single();
-
+    
     if (bookingError) throw bookingError;
 
     // Insert booking slots
-    const slotsToInsert = (bookingData.slots || [{
-      date: bookingData.date,
-      start_time: bookingData.start_time,
-      end_time: bookingData.end_time
-    }]).map(slot => ({
+    const slotsToInsert = slots.map(slot => ({
       booking_id: booking.id,
       date: slot.date,
       start_time: slot.start_time,
@@ -164,17 +138,19 @@ export default async function handler(req, res) {
       created_at: new Date().toISOString()
     }));
 
-    const { error: slotsError } = await supabase.from('booking_slots').insert(slotsToInsert);
+    const { error: slotsError } = await supabase
+      .from('booking_slots')
+      .insert(slotsToInsert);
+
     if (slotsError) {
-      // Rollback booking if slots fail
+      // Rollback booking
       await supabase.from('bookings').delete().eq('id', booking.id);
-      return res.status(500).json({ error: 'Failed to create booking slots', details: slotsError.message });
+      throw slotsError;
     }
 
     return res.status(201).json({ success: true, booking_id: booking.id, slots: slotsToInsert.length });
-
   } catch (error) {
-    console.error('[Booking] Unhandled error:', error);
-    return res.status(500).json({ error: 'Internal server error', message: error.message, code: error.code });
+    console.error('Booking creation error:', error);
+    return res.status(500).json({ error: 'Internal server error', message: error.message });
   }
 }
