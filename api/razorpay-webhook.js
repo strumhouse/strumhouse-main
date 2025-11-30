@@ -18,9 +18,9 @@ const EVENT_STATUS_MAP = {
   'refund.processed': { payment: 'refunded', booking: 'refunded' },
 };
 
-// Parse raw body for signature verification
 async function parseRawBody(req, res) {
   return new Promise((resolve, reject) => {
+    console.log("[Webhook] Parsing raw body...");
     let data = [];
     req.on('data', chunk => data.push(chunk));
     req.on('end', () => resolve(Buffer.concat(data)));
@@ -28,24 +28,26 @@ async function parseRawBody(req, res) {
   });
 }
 
-// Log webhook event to prevent duplicates
 async function logWebhookEvent(eventId) {
+  console.log(`[Webhook] Logging event ID: ${eventId}`);
   const { error } = await supabase
     .from('webhook_logs')
     .insert({ event_id: eventId });
 
-  if (error && (error.code === '23505' || (error.message && error.message.toLowerCase().includes('duplicate')))) {
-    return { duplicate: true };
-  } else if (error) {
+  if (error) {
+    console.error("[Webhook] Event Logging Error:", error);
+    if (error.code === '23505' || error.message?.toLowerCase().includes('duplicate')) {
+      console.warn("[Webhook] Duplicate event detected:", eventId);
+      return { duplicate: true };
+    }
     throw error;
   }
 
   return { duplicate: false };
 }
 
-// Update payments and bookings
 async function updatePaymentAndBooking(paymentRecord, updates) {
-  if (!paymentRecord) return;
+  console.log("[Webhook] Updating payment + booking linked to:", paymentRecord);
 
   const timestamp = new Date().toISOString();
 
@@ -61,7 +63,8 @@ async function updatePaymentAndBooking(paymentRecord, updates) {
     .update(paymentUpdate)
     .eq('id', paymentRecord.id);
 
-  if (paymentError) console.error('[Webhook] Payment update error:', paymentError);
+  if (paymentError) console.error("[Webhook] Payment update error:", paymentError);
+  else console.log("[Webhook] Payment updated successfully:", paymentUpdate);
 
   const bookingUpdate = {
     payment_status: updates.bookingStatus,
@@ -75,84 +78,57 @@ async function updatePaymentAndBooking(paymentRecord, updates) {
     .update(bookingUpdate)
     .eq('id', paymentRecord.booking_id);
 
-  if (bookingError) console.error('[Webhook] Booking update error:', bookingError);
+  if (bookingError) console.error("[Webhook] Booking update error:", bookingError);
+  else console.log("[Webhook] Booking updated successfully:", bookingUpdate);
 }
 
-// Handle payment event
-async function handlePaymentEvent(paymentEntity, targetStatuses) {
+async function handlePaymentEvent(paymentEntity, targetStatus) {
+  console.log("[Webhook] Payment entity received:", paymentEntity);
+
   if (!paymentEntity) {
     console.error('[Webhook] Missing payment entity in payload');
     return;
   }
 
-  console.log(`[Webhook] Processing payment event for order: ${paymentEntity.order_id}, status: ${targetStatuses.payment}`);
+  const orderId = paymentEntity.order_id;
+  console.log(`[Webhook] Searching payment record for order: ${orderId}`);
 
-  // Find the payment record by Razorpay order ID
-  const { data: paymentRecord, error: paymentError } = await supabase
+  const { data: paymentRecord, error } = await supabase
     .from('payments')
     .select('id, booking_id, status')
-    .eq('razorpay_order_id', paymentEntity.order_id)
+    .eq('razorpay_order_id', orderId)
     .maybeSingle();
 
-  if (paymentError) {
-    console.error('[Webhook] Error fetching payment record:', paymentError);
+  if (error) {
+    console.error("[Webhook] DB fetch error:", error);
     return;
   }
 
   if (!paymentRecord) {
-    console.warn('[Webhook] No payment record found for order:', paymentEntity.order_id);
+    console.warn("[Webhook] No payment record found — NEW order?");
     return;
   }
 
-  // Skip if payment is already in the target state
-  if (paymentRecord.status === targetStatuses.payment) {
-    console.log(`[Webhook] Payment ${paymentRecord.id} already in state: ${targetStatuses.payment}`);
+  console.log("[Webhook] Found payment record:", paymentRecord);
+
+  if (paymentRecord.status === targetStatus.payment) {
+    console.log("[Webhook] Payment already in required state. Skip.");
     return;
   }
 
-  // Update payment status
-  const { error: updatePaymentError } = await supabase
-    .from('payments')
-    .update({
-      status: targetStatuses.payment,
-      razorpay_payment_id: paymentEntity.id,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', paymentRecord.id);
-
-  if (updatePaymentError) {
-    console.error('[Webhook] Error updating payment status:', updatePaymentError);
-    return;
-  }
-
-  // Update booking status based on payment status
-  const bookingUpdate = {
-    payment_status: targetStatuses.payment === 'captured' ? 'paid' : targetStatuses.payment,
-    updated_at: new Date().toISOString()
-  };
-
-  // Only update booking status to confirmed for successful payments
-  if (targetStatuses.payment === 'captured') {
-    bookingUpdate.status = 'confirmed';
-  }
-
-  const { error: updateBookingError } = await supabase
-    .from('bookings')
-    .update(bookingUpdate)
-    .eq('id', paymentRecord.booking_id);
-
-  if (updateBookingError) {
-    console.error('[Webhook] Error updating booking status:', updateBookingError);
-  } else {
-    console.log(`[Webhook] Updated booking ${paymentRecord.booking_id} with:`, bookingUpdate);
-  }
+  await updatePaymentAndBooking(paymentRecord, {
+    paymentStatus: targetStatus.payment,
+    bookingStatus: targetStatus.booking,
+    confirmBooking: !!targetStatus.confirmBooking,
+    razorpayPaymentId: paymentEntity.id
+  });
 }
 
-// Handle refund event
 async function handleRefundEvent(refundEntity) {
+  console.log("[Webhook] Refund entity received:", refundEntity);
   if (!refundEntity) return;
 
-  let paymentRecord = null;
+  let paymentRecord;
 
   if (refundEntity.order_id) {
     const { data } = await supabase
@@ -173,77 +149,76 @@ async function handleRefundEvent(refundEntity) {
   }
 
   if (!paymentRecord) {
-    console.warn('[Webhook] Refund received but no payment record found');
+    console.warn('[Webhook] Refund event received but no record found.');
     return;
   }
 
-  await updatePaymentAndBooking(paymentRecord, {
-    paymentStatus: EVENT_STATUS_MAP['refund.processed'].payment,
-    bookingStatus: EVENT_STATUS_MAP['refund.processed'].booking,
-  });
+  await updatePaymentAndBooking(paymentRecord, EVENT_STATUS_MAP['refund.processed']);
 }
 
-// Process any Razorpay event
 async function processWebhookEvent(eventPayload) {
+  console.log("[Webhook] Full Payload:", JSON.stringify(eventPayload, null, 2));
+
   const eventId = eventPayload?.id;
   const eventType = eventPayload?.event;
 
-  if (!eventId || !eventType) return;
+  console.log(`[Webhook] Event: ${eventType}, ID: ${eventId}`);
 
-  try {
-    const { duplicate } = await logWebhookEvent(eventId);
-    if (duplicate) return console.log(`[Webhook] Duplicate event ${eventId} skipped.`);
-  } catch (err) {
-    console.error('[Webhook] Logging error:', err);
-    return;
-  }
+  const { duplicate } = await logWebhookEvent(eventId);
+  if (duplicate) return;
 
-  try {
-    if (eventType === 'refund.processed') {
-      await handleRefundEvent(eventPayload?.payload?.refund?.entity);
-    } else if (eventType === 'payment.captured' || eventType === 'payment.failed') {
-      await handlePaymentEvent(eventPayload?.payload?.payment?.entity, EVENT_STATUS_MAP[eventType]);
-    } else {
-      console.log(`[Webhook] Unhandled event type: ${eventType}`);
-    }
-  } catch (err) {
-    console.error(`[Webhook] Error processing event ${eventId}:`, err);
+  if (eventType === 'payment.captured' || eventType === 'payment.failed') {
+    await handlePaymentEvent(eventPayload?.payload?.payment?.entity, EVENT_STATUS_MAP[eventType]);
+  } else if (eventType === 'refund.processed') {
+    await handleRefundEvent(eventPayload?.payload?.refund?.entity);
+  } else {
+    console.log("[Webhook] Unhandled Event:", eventType);
   }
 }
 
-// Main API handler
 export default async function handler(req, res) {
+  console.log(`[Webhook] Incoming request → ${req.method}`);
+
   if (req.method !== 'POST') {
+    console.warn("[Webhook] Rejecting non-POST request");
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
-  if (!webhookSecret) return res.status(500).json({ error: 'Webhook secret not configured' });
+  console.log("[Webhook] Secret loaded:", !!webhookSecret);
+
+  if (!webhookSecret) return res.status(500).json({ error: 'Webhook secret missing' });
 
   try {
     const rawBody = await parseRawBody(req, res);
     const signature = req.headers['x-razorpay-signature'];
-    if (!signature) return res.status(400).json({ error: 'Missing signature header' });
+
+    console.log("[Webhook] Signature received:", signature);
 
     const expectedSignature = crypto
       .createHmac('sha256', webhookSecret)
       .update(rawBody)
       .digest('hex');
 
-    if (signature !== expectedSignature) return res.status(400).json({ error: 'Invalid signature' });
+    console.log("[Webhook] Expected Signature:", expectedSignature);
+
+    if (signature !== expectedSignature) {
+      console.error("[Webhook] Signature mismatch!");
+      return res.status(400).json({ error: 'Invalid signature' });
+    }
 
     const eventPayload = JSON.parse(rawBody.toString('utf8'));
 
-    // Acknowledge immediately to Razorpay
     res.status(200).json({ status: 'ok' });
+    console.log("[Webhook] Accepted → Now processing async");
 
-    // Async processing
     processWebhookEvent(eventPayload).catch(err => {
-      console.error('[Webhook] Unexpected async error:', err);
+      console.error("[Webhook] Async Processing Error:", err);
     });
+
   } catch (err) {
-    console.error('[Webhook] Failed to process request:', err);
-    if (!res.headersSent) return res.status(500).json({ error: 'Internal server error' });
+    console.error("[Webhook] Failure:", err);
+    if (!res.headersSent) return res.status(500).json({ error: 'Internal error' });
   }
 }
