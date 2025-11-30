@@ -1,12 +1,12 @@
-const { defineConfig } = require('vite');
-const react = require('@vitejs/plugin-react');
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
-module.exports = defineConfig({
+// https://vitejs.dev/config/
+export default defineConfig({
   base: "/",
   plugins: [react()],
   optimizeDeps: {
     exclude: ['lucide-react'],
-    include: ['@tailwindcss/forms'],
   },
   build: {
     outDir: 'dist',
@@ -29,20 +29,6 @@ module.exports = defineConfig({
     }
   },
   define: {
-    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
     __DEV__: process.env.NODE_ENV === 'development'
-  },
-  server: {
-    port: 3000,
-    fs: {
-      strict: true,
-    },
-  },
-  css: {
-    postcss: {
-      plugins: [require('@tailwindcss/postcss7-compat'),
-        require('autoprefixer')
-      ],
-    },
   }
 });
