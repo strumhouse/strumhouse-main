@@ -1,20 +1,17 @@
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
   process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
 );
 
-// For Vercel serverless functions
 export const config = {
   api: {
     bodyParser: false,
   },
 };
 
-// Map Razorpay events to our statuses
 const EVENT_STATUS_MAP = {
   'payment.captured': { payment: 'captured', booking: 'paid', confirmBooking: true },
   'payment.failed': { payment: 'failed', booking: 'failed' },
@@ -106,7 +103,6 @@ async function updateBookingAndPayment(orderId, paymentId, statuses) {
   return true;
 }
 
-// Main handler function
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
