@@ -159,26 +159,94 @@ export default async function handler(req, res) {
       });
     }
 
-    // Create booking
-    console.log('[Booking] Creating booking in database...');
-    const { data: booking, error: bookingError } = await supabase
-      .from('bookings')
-      .insert({
-        ...bookingData,
-        status: 'pending',
-        payment_status: 'pending',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+    // Debug: Log booking data and validate before insertion
+    console.log('[Booking Debug] Booking data being inserted:', JSON.stringify(bookingData, null, 2));
 
-    if (bookingError) {
-      console.error('[Booking] Error creating booking:', bookingError);
+    // Validate required fields
+    const requiredFields = [
+      'user_id', 'service_id', 'customer_name', 
+      'customer_email', 'date', 'start_time', 
+      'end_time', 'total_amount', 'advance_amount'
+    ];
+
+    const missingFields = requiredFields.filter(field => !bookingData[field] && bookingData[field] !== 0);
+    if (missingFields.length > 0) {
+      console.error('[Booking Debug] Missing required fields:', missingFields);
+      return res.status(400).json({ 
+        error: 'Missing required fields',
+        missingFields,
+        receivedData: Object.keys(bookingData)
+      });
+    }
+
+    // Validate foreign keys exist
+    console.log('[Booking Debug] Verifying foreign keys...');
+    try {
+      const { data: userExists } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', bookingData.user_id)
+        .maybeSingle();
+
+      if (!userExists) {
+        console.error('[Booking Debug] user_id does not exist:', bookingData.user_id);
+        return res.status(400).json({ 
+          error: 'Invalid user_id',
+          message: 'The specified user does not exist'
+        });
+      }
+
+      const { data: serviceExists } = await supabase
+        .from('services')
+        .select('id')
+        .eq('id', bookingData.service_id)
+        .maybeSingle();
+
+      if (!serviceExists) {
+        console.error('[Booking Debug] service_id does not exist:', bookingData.service_id);
+        return res.status(400).json({ 
+          error: 'Invalid service_id',
+          message: 'The specified service does not exist'
+        });
+      }
+    } catch (fkError) {
+      console.error('[Booking Debug] Error verifying foreign keys:', fkError);
+      return res.status(500).json({ 
+        error: 'Error validating booking data',
+        details: fkError.message
+      });
+    }
+
+    // Create booking with enhanced error handling
+    console.log('[Booking] Creating booking in database...');
+    let booking;
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert({
+          ...bookingData,
+          status: 'pending',
+          payment_status: 'pending',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Booking Debug] Supabase insert error:', error);
+        throw error;
+      }
+      
+      console.log('[Booking Debug] Booking created successfully:', data);
+      booking = data;
+    } catch (bookingError) {
+      console.error('[Booking Debug] Error during booking creation:', bookingError);
       return res.status(500).json({ 
         error: 'Failed to create booking',
         details: bookingError.message,
-        code: bookingError.code
+        code: bookingError.code,
+        hint: bookingError.hint || ''
       });
     }
 
