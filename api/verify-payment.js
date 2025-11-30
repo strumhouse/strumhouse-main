@@ -2,17 +2,15 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
 const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+  process.env.VITE_SUPABASE_URL,
+  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
 );
 
-// For Vite, we need to export the handler
-export const handler = async (req, res) => {
-
-  /**
-   * Verifies a Razorpay payment and updates the payment and booking status
-   * Handles both direct verification and webhook scenarios
-   */
+/**
+ * Verifies a Razorpay payment and updates the payment and booking status
+ * Handles both direct verification and webhook scenarios
+ */
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
