@@ -134,8 +134,7 @@ export default async function handler(req, res) {
       booking_id: booking.id,
       date: slot.date,
       start_time: slot.start_time,
-      end_time: slot.end_time,
-      created_at: new Date().toISOString()
+      end_time: slot.end_time
     }));
 
     const { error: slotsError } = await supabase
