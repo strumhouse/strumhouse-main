@@ -27,17 +27,37 @@ async function rawBody(req) {
   });
 }
 
-// Robust update function that creates the row if missing (Self-Healing)
+async function logEvent(eventId, eventType, status, details = {}) {
+  if (!eventId) return { duplicate: false };
+
+  const logEntry = {
+    event_id: eventId,
+    event_type: eventType,
+    status,
+    details: JSON.stringify(details),
+    created_at: new Date().toISOString()
+  };
+
+  const { error } = await supabase.from('webhook_logs').insert(logEntry);
+
+  if (error && error.code === '23505') {
+    return { duplicate: true };
+  } else if (error) {
+    console.error('[Webhook] Error logging event:', error);
+    return { duplicate: false, error };
+  }
+  return { duplicate: false };
+}
+
 async function updateBookingAndPayment(orderId, paymentId, statuses, bookingIdFromNotes, amountInPaise) {
   const timestamp = new Date().toISOString();
   
-  // 1. Prepare data for UPSERT (Insert if new, Update if exists)
+  // 1. Prepare data for UPSERT
   const paymentData = {
     razorpay_order_id: orderId,
     status: statuses.payment,
     razorpay_payment_id: paymentId || undefined,
     updated_at: timestamp,
-    // Fields below are only used if we are inserting a NEW row (recovery mode)
     ...(bookingIdFromNotes && { booking_id: bookingIdFromNotes }),
     ...(amountInPaise && { amount: amountInPaise / 100 }) 
   };
@@ -56,7 +76,7 @@ async function updateBookingAndPayment(orderId, paymentId, statuses, bookingIdFr
     throw new Error(`Payment upsert failed: ${paymentError.message}`);
   }
 
-  // 3. Update Booking Status (if we have a valid booking_id)
+  // 3. Update Booking Status
   const targetBookingId = payment?.booking_id || bookingIdFromNotes;
 
   if (targetBookingId && statuses.confirmBooking) {
@@ -93,38 +113,51 @@ export default async function handler(req, res) {
     const signature = req.headers['x-razorpay-signature'];
     const payload = JSON.parse(raw.toString());
 
-    // Verify signature
+    // 1. Verify signature FIRST
     const expectedSignature = crypto
       .createHmac('sha256', webhookSecret)
       .update(raw)
       .digest('hex');
 
     if (signature !== expectedSignature) {
+      await logEvent(payload.id, payload.event, 'signature_mismatch');
       return res.status(400).json({ error: 'Invalid signature' });
     }
 
-    // Acknowledge immediately
-    res.status(200).json({ status: 'received' });
-
-    const { event: eventType, payload: eventPayload } = payload;
+    const { id: eventId, event: eventType, payload: eventPayload } = payload;
     const entity = eventPayload?.payment?.entity || eventPayload?.refund?.entity;
 
+    // 2. Check Duplicate
+    const { duplicate } = await logEvent(eventId, eventType, 'received');
+    if (duplicate) {
+      // It's safe to return 200 for duplicates (idempotency)
+      return res.status(200).json({ status: 'ignored_duplicate' });
+    }
+
     const statuses = EVENT_STATUS_MAP[eventType];
-    if (!statuses || !entity?.order_id) return; // Ignore unhandled events
+    
+    // 3. Process the logic if event is relevant
+    if (statuses && entity?.order_id) {
+        const bookingId = entity.notes?.booking_id;
 
-    // Extract booking_id from notes (The Safety Net)
-    const bookingId = entity.notes?.booking_id;
+        // CRITICAL FIX: We AWAIT this before sending res.status(200)
+        await updateBookingAndPayment(
+          entity.order_id,
+          entity.id,
+          statuses,
+          bookingId,
+          entity.amount
+        );
+        
+        await logEvent(eventId, eventType, 'processed');
+    }
 
-    await updateBookingAndPayment(
-      entity.order_id,
-      entity.id,
-      statuses,
-      bookingId,
-      entity.amount
-    );
+    // 4. Send 200 OK ONLY after work is done
+    return res.status(200).json({ status: 'ok' });
 
   } catch (error) {
     console.error('[Webhook] Error:', error);
+    // Even if we fail, we generally return 500 so Razorpay retries later
     if (!res.headersSent) res.status(500).json({ error: 'Internal Error' });
   }
 }
