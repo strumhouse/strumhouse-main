@@ -59,23 +59,46 @@ export default async function handler(req, res) {
 
     // Ensure a pending payment record exists before returning to client
     const timestamp = new Date().toISOString();
-    const paymentPayload = {
-      booking_id: bookingId,
+    const basePayload = {
       amount,
       currency: currency || 'INR',
       payment_method: 'razorpay',
       razorpay_order_id: data.id,
       status: 'pending',
-      created_at: timestamp,
       updated_at: timestamp
     };
 
-    const { error: upsertError } = await supabase
+    const { data: existingPayment, error: fetchError } = await supabase
       .from('payments')
-      .upsert(paymentPayload, { onConflict: 'razorpay_order_id' });
+      .select('id')
+      .eq('booking_id', bookingId)
+      .maybeSingle();
 
-    if (upsertError) {
-      console.error('[CreateOrder] Error upserting payment record:', upsertError);
+    if (fetchError) {
+      console.error('[CreateOrder] Error fetching existing payment:', fetchError);
+      return res.status(500).json({ error: 'Failed to persist payment record' });
+    }
+
+    let paymentError;
+    if (existingPayment) {
+      const { error } = await supabase
+        .from('payments')
+        .update(basePayload)
+        .eq('id', existingPayment.id);
+      paymentError = error;
+    } else {
+      const { error } = await supabase
+        .from('payments')
+        .insert({
+          booking_id: bookingId,
+          ...basePayload,
+          created_at: timestamp
+        });
+      paymentError = error;
+    }
+
+    if (paymentError) {
+      console.error('[CreateOrder] Error persisting payment record:', paymentError);
       return res.status(500).json({ error: 'Failed to persist payment record' });
     }
 
