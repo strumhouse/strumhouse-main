@@ -23,15 +23,17 @@ export default async function handler(req, res) {
     const receipt = `b_${bookingId}_${Date.now()}`.slice(0, 40);
 
     const orderData = {
-      amount: Math.round(amount * 100), // Convert to paise and ensure integer
+      amount: Math.round(amount * 100), // Convert to paise
       currency: currency || 'INR',
       receipt,
-      notes: { booking_id: bookingId }
+      notes: { 
+        booking_id: bookingId // CRITICAL: Used for recovery in webhook/verify
+      }
     };
 
     console.log('[CreateOrder] Creating Razorpay order for booking:', bookingId);
 
-    // Create Razorpay order
+    // 1. Create Razorpay order
     const auth = Buffer.from(
       `${process.env.VITE_RAZORPAY_KEY_ID}:${process.env.VITE_RAZORPAY_KEY_SECRET}`
     ).toString('base64');
@@ -55,23 +57,26 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log('[CreateOrder] Razorpay order created:', data.id);
-
-    // Store the Razorpay order ID in the payments table
-    const { error: updateError } = await supabase
+    // 2. Create Payment Record IMMEDIATELY (Server as Source of Truth)
+    const { error: dbError } = await supabase
       .from('payments')
-      .update({
+      .upsert({
         razorpay_order_id: data.id,
-        status: 'created',
-        updated_at: new Date().toISOString()
-      })
-      .eq('booking_id', bookingId);
+        booking_id: bookingId,
+        amount: amount, // Store in main currency units
+        currency: currency || 'INR',
+        status: 'created', // Initial state
+        created_at: new Date().toISOString()
+      }, { onConflict: 'razorpay_order_id' });
 
-    if (updateError) {
-      console.error('[CreateOrder] Error updating payment record:', updateError);
-      // Still return success since Razorpay order was created
-      // The webhook will handle the status update later
+    if (dbError) {
+      console.error('[CreateOrder] DB Insert Error:', dbError);
+      // We throw to fail the request so the client tries again, 
+      // ensuring we don't have an order without a DB row.
+      return res.status(500).json({ error: 'Failed to initialize payment record' });
     }
+
+    console.log('[CreateOrder] Success. DB Row created for Order:', data.id);
 
     res.status(200).json({
       id: data.id,
