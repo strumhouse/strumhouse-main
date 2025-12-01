@@ -57,20 +57,26 @@ export default async function handler(req, res) {
 
     console.log('[CreateOrder] Razorpay order created:', data.id);
 
-    // Store the Razorpay order ID in the payments table
-    const { error: updateError } = await supabase
-      .from('payments')
-      .update({
-        razorpay_order_id: data.id,
-        status: 'created',
-        updated_at: new Date().toISOString()
-      })
-      .eq('booking_id', bookingId);
+    // Ensure a pending payment record exists before returning to client
+    const timestamp = new Date().toISOString();
+    const paymentPayload = {
+      booking_id: bookingId,
+      amount,
+      currency: currency || 'INR',
+      payment_method: 'razorpay',
+      razorpay_order_id: data.id,
+      status: 'pending',
+      created_at: timestamp,
+      updated_at: timestamp
+    };
 
-    if (updateError) {
-      console.error('[CreateOrder] Error updating payment record:', updateError);
-      // Still return success since Razorpay order was created
-      // The webhook will handle the status update later
+    const { error: upsertError } = await supabase
+      .from('payments')
+      .upsert(paymentPayload, { onConflict: 'razorpay_order_id' });
+
+    if (upsertError) {
+      console.error('[CreateOrder] Error upserting payment record:', upsertError);
+      return res.status(500).json({ error: 'Failed to persist payment record' });
     }
 
     res.status(200).json({

@@ -57,41 +57,75 @@ async function logEvent(eventId, eventType, status, details = {}) {
   return { duplicate: false };
 }
 
-async function updateBookingAndPayment(orderId, paymentId, statuses) {
+async function upsertPaymentFromWebhook({
+  orderId,
+  paymentId,
+  bookingId,
+  statuses,
+  entity
+}) {
   const timestamp = new Date().toISOString();
-  
-  // Update payment status first
-  const { data: payment, error: paymentError } = await supabase
+
+  const paymentPayload = {
+    razorpay_order_id: orderId,
+    razorpay_payment_id: paymentId,
+    booking_id: bookingId || null,
+    amount: entity.amount ? entity.amount / 100 : null,
+    currency: entity.currency || 'INR',
+    payment_method: entity.method || 'razorpay',
+    status: statuses.payment,
+    updated_at: timestamp,
+    created_at: timestamp
+  };
+
+  const { data: payment, error } = await supabase
     .from('payments')
-    .update({
-      status: statuses.payment,
-      razorpay_payment_id: paymentId || undefined,
-      updated_at: timestamp
-    })
-    .eq('razorpay_order_id', orderId)
+    .upsert(paymentPayload, { onConflict: 'razorpay_order_id' })
     .select('id, booking_id')
     .single();
 
-  if (paymentError) {
-    console.error('[Webhook] Payment update error:', paymentError);
-    throw new Error(`Payment update failed: ${paymentError.message}`);
+  if (error) {
+    console.error('[Webhook] Payment upsert error:', error);
+    throw new Error(`Payment upsert failed: ${error.message}`);
   }
 
-  if (!payment) {
-    console.warn(`[Webhook] No payment found for order: ${orderId}`);
+  return payment;
+}
+
+async function updateBookingAndPayment(entity, statuses) {
+  const { order_id: orderId, id: paymentId, notes } = entity;
+  const timestamp = new Date().toISOString();
+  const bookingIdFromNotes = notes?.booking_id;
+
+  const payment = await upsertPaymentFromWebhook({
+    orderId,
+    paymentId,
+    bookingId: bookingIdFromNotes,
+    statuses,
+    entity
+  });
+
+  if (!payment?.booking_id && !bookingIdFromNotes) {
+    console.warn('[Webhook] Payment upserted but booking_id missing', { orderId });
     return false;
   }
 
-  // Update booking status if payment was successful
-  if (statuses.confirmBooking) {
+  const bookingId = payment.booking_id || bookingIdFromNotes;
+  if (!bookingId) {
+    return false;
+  }
+
+  const bookingUpdate = statuses.confirmBooking
+    ? { status: 'confirmed', payment_status: 'paid' }
+    : statuses.booking
+      ? { status: statuses.booking, payment_status: statuses.booking === 'failed' ? 'failed' : statuses.booking }
+      : null;
+
+  if (bookingUpdate) {
     const { error: bookingError } = await supabase
       .from('bookings')
-      .update({
-        status: 'confirmed',
-        payment_status: 'paid',
-        updated_at: timestamp
-      })
-      .eq('id', payment.booking_id);
+      .update({ ...bookingUpdate, updated_at: timestamp })
+      .eq('id', bookingId);
 
     if (bookingError) {
       console.error('[Webhook] Booking update error:', bookingError);
@@ -99,7 +133,7 @@ async function updateBookingAndPayment(orderId, paymentId, statuses) {
     }
   }
 
-  console.log(`[Webhook] Successfully updated payment ${payment.id} and booking ${payment.booking_id}`);
+  console.log(`[Webhook] Updated payment ${payment.id} and booking ${bookingId}`);
   return true;
 }
 
@@ -163,11 +197,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    await updateBookingAndPayment(
-      entity.order_id,
-      entity.id,
-      statuses
-    );
+    await updateBookingAndPayment(entity, statuses);
 
     console.log(`[Webhook] Successfully processed ${eventType} for order ${entity.order_id}`);
   } catch (error) {

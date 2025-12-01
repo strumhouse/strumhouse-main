@@ -29,6 +29,7 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState<PaymentOrder | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
   const [agreed, setAgreed] = useState(false);
   const [pollingBookingStatus, setPollingBookingStatus] = useState(false);
@@ -42,7 +43,8 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
     try {
       setLoading(true);
       setError(null);
-      
+      setStatusMessage(null);
+
       const paymentOrder = await paymentService.createOrder(bookingId, amount);
       setOrder(paymentOrder);
     } catch (err) {
@@ -67,20 +69,21 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
 
       try {
         const booking = await paymentService.getBookingDetails(bookingId);
-        
+
         // Fix: Properly check status and stop polling
         if (booking && booking.status === 'confirmed' && booking.payment_status === 'paid') {
           setBookingConfirmed(true);
           setPollingBookingStatus(false); // Stop polling
           setPaymentStatus('success');
-          
+          setStatusMessage(null);
+
           // Call success callback
           setTimeout(() => {
             onPaymentSuccess({ booking_id: bookingId });
           }, 2000);
           return; // Exit polling
         }
-        
+
         // If still pending, continue polling
         if (booking && (booking.status !== 'confirmed' || booking.payment_status !== 'paid')) {
           attempts++;
@@ -107,25 +110,22 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
   const handlePaymentSuccess = async (response: PaymentResponse) => {
     try {
       setPaymentStatus('processing');
-      
+      setStatusMessage('Verifying payment with Razorpay...');
+
       // Verify payment (lightweight check)
       const isVerified = await paymentService.verifyPayment(response);
-      
-      if (!isVerified) {
-        throw new Error('Payment verification failed');
-      }
 
-      // Save payment details (non-blocking)
-      try {
-        await paymentService.savePaymentDetails(bookingId, response, amount);
-      } catch (saveError) {
-        console.error('Error saving payment details:', saveError);
-        // Continue - webhook will handle this
+      if (!isVerified) {
+        console.warn('Client-side verification failed, deferring to webhook.');
+        setStatusMessage('Payment received. Waiting for gateway confirmation...');
+      } else {
+        setStatusMessage('Payment verified. Finalizing your booking...');
       }
 
       // Start polling for booking confirmation (webhook will finalize)
       setPollingBookingStatus(true);
       pollBookingStatus();
+      setError(null);
 
       // Send email notification (non-blocking)
       try {
@@ -156,6 +156,8 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
       console.error('Payment processing error:', err);
       setPaymentStatus('failed');
       setError('Payment processing failed. Please try again.');
+      setStatusMessage(null);
+      onPaymentFailure('Payment processing failed. Please try again.');
       
       try {
         await paymentService.updateBookingPaymentStatus(bookingId, 'failed');
@@ -169,6 +171,8 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
     console.error('Payment failed:', error);
     setPaymentStatus('failed');
     setError(error.message || 'Payment was cancelled or failed. Please try again.');
+    setStatusMessage(null);
+    onPaymentFailure(error.message || 'Payment was cancelled or failed. Please try again.');
   };
 
   const initiatePayment = () => {
@@ -187,6 +191,7 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
 
   const retryPayment = () => {
     setError(null);
+    setStatusMessage(null);
     setPaymentStatus('idle');
     createPaymentOrder();
   };
@@ -210,17 +215,17 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
         <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
           <CheckCircle className="w-8 h-8 text-white" />
         </div>
-        
+
         <h3 className="text-2xl font-bold text-white mb-4">Payment Successful!</h3>
         <p className="text-gray-300 mb-6">
           Your payment of {formatAmount(amount)} has been processed successfully.
         </p>
-        
+
         <div className="bg-gray-800 rounded-lg p-4 mb-6">
           <p className="text-sm text-gray-400">Transaction ID</p>
           <p className="text-white font-mono text-sm">{order?.id}</p>
         </div>
-        
+
         <div className="flex items-center justify-center text-green-400">
           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
           <span className="text-sm">Redirecting to booking confirmation...</span>
@@ -239,7 +244,7 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
         <div className="w-16 h-16 bg-yellow-500 rounded-full flex items-center justify-center mx-auto mb-6">
           <Loader2 className="w-8 h-8 text-white animate-spin" />
         </div>
-        
+
         <h3 className="text-2xl font-bold text-white mb-4">Payment Received!</h3>
         <p className="text-gray-300 mb-6">
           Waiting for booking confirmation...
@@ -258,12 +263,12 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
         <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
           <AlertCircle className="w-8 h-8 text-white" />
         </div>
-        
+
         <h3 className="text-2xl font-bold text-white mb-4">Payment Failed</h3>
         {error && (
           <p className="text-red-400 mb-6">{error}</p>
         )}
-        
+
         <div className="space-y-3">
           <button
             onClick={retryPayment}
@@ -367,7 +372,15 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({
         </div>
       </div>
 
-      {/* Error Display */}
+      {/* Status / Error Display */}
+      {statusMessage && (
+        <div className="bg-yellow-900/20 border border-yellow-500 rounded-lg p-4 mb-4">
+          <div className="flex items-center">
+            <Loader2 className="w-4 h-4 text-yellow-300 mr-3 animate-spin" />
+            <span className="text-yellow-300 text-sm">{statusMessage}</span>
+          </div>
+        </div>
+      )}
       {error && (
         <div className="bg-red-900/20 border border-red-500 rounded-lg p-4 mb-6">
           <div className="flex items-center">

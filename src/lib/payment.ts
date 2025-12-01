@@ -27,8 +27,6 @@ export interface PaymentDetails {
   currency: string;
   payment_method: string;
   status: 'pending' | 'completed' | 'failed';
-  razorpay_payment_id?: string;
-  razorpay_order_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -180,36 +178,6 @@ export const paymentService = {
     }
   },
 
-
-
-  // Save payment details to database
-  async savePaymentDetails(bookingId: string, paymentResponse: PaymentResponse, amount: number): Promise<PaymentDetails> {
-    try {
-      const paymentData = {
-        booking_id: bookingId,
-        amount: amount,
-        currency: 'INR',
-        payment_method: 'razorpay',
-        status: 'completed',
-        razorpay_payment_id: paymentResponse.razorpay_payment_id,
-        razorpay_order_id: paymentResponse.razorpay_order_id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      const { data, error } = await supabase
-        .from('payments')
-        .insert([paymentData])
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error saving payment details:', error);
-      throw error;
-    }
-  },
 
   // Update booking payment status
   async updateBookingPaymentStatus(bookingId: string, status: 'pending' | 'paid' | 'failed'): Promise<void> {
