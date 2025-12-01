@@ -13,42 +13,29 @@ function timesOverlap(startA, endA, startB, endB) {
 // Check if booking slot is available
 async function isSlotFree(service_id, slots) {
   const conflicts = [];
-  
-  // 10-minute reservation window for pending bookings
-  // Pending bookings older than 10 mins are considered "Abandoned" and ignored.
-  const reservationWindow = new Date(Date.now() - 10 * 60 * 1000).toISOString();
 
   for (const slot of slots) {
-    // Check existing bookings (Confirmed OR Recently Pending)
+    // Check existing bookings
     const { data: bookedSlots, error: bookingError } = await supabase
       .from('booking_slots')
       .select(`
         *,
-        bookings!inner(service_id, status, payment_status, created_at)
+        bookings!inner(service_id, status, payment_status)
       `)
       .eq('date', slot.date)
-      .eq('bookings.service_id', service_id);
+      .eq('bookings.service_id', service_id)
+      .eq('bookings.status', 'confirmed')
+      .eq('bookings.payment_status', 'paid');
 
     if (bookingError) throw new Error(bookingError.message);
 
     for (const booked of bookedSlots || []) {
-      const booking = booked.bookings;
-      
-      const isConfirmed = booking.status === 'confirmed' && booking.payment_status === 'paid';
-      
-      // CRITICAL CHECK: Is this a "Fresh" pending booking? (Created < 10 mins ago)
-      const isPendingAndRecent = booking.status === 'pending' && booking.created_at > reservationWindow;
-
-      // If it is Confirmed OR Fresh Pending, consider the slot BLOCKED.
-      if (isConfirmed || isPendingAndRecent) {
-        if (timesOverlap(slot.start_time, slot.end_time, booked.start_time, booked.end_time)) {
-          const reason = isConfirmed ? 'already booked' : 'currently being booked by someone else';
-          conflicts.push(`Slot ${slot.start_time}-${slot.end_time} on ${slot.date} is ${reason}`);
-        }
+      if (timesOverlap(slot.start_time, slot.end_time, booked.start_time, booked.end_time)) {
+        conflicts.push(`Slot ${slot.start_time}-${slot.end_time} on ${slot.date} is already booked`);
       }
     }
 
-    // Check blocked slots (Admin Blocks)
+    // Check blocked slots
     const { data: blockedSlots, error: blockedError } = await supabase
       .from('blocked_slots')
       .select('*')
@@ -58,7 +45,7 @@ async function isSlotFree(service_id, slots) {
 
     for (const blocked of blockedSlots || []) {
       if (timesOverlap(slot.start_time, slot.end_time, blocked.start_time, blocked.end_time)) {
-        conflicts.push(`Slot ${slot.start_time}-${slot.end_time} on ${slot.date} is blocked by admin`);
+        conflicts.push(`Slot ${slot.start_time}-${slot.end_time} on ${slot.date} is blocked`);
       }
     }
   }
@@ -106,7 +93,7 @@ export default async function handler(req, res) {
       end_time: bookingData.end_time
     }];
 
-    // Check availability (Includes 10-minute pending check)
+    // Check availability
     const { free, conflicts } = await isSlotFree(bookingData.service_id, slots);
     if (!free) {
       return res.status(409).json({ error: 'Slot conflict', conflicts });
