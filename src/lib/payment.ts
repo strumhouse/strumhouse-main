@@ -1,9 +1,6 @@
 import { supabase } from './supabase';
 
-// For client-side use (public key only)
 const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID;
-// Do NOT expose secret on client side
-
 
 export interface PaymentOrder {
   id: string;
@@ -20,156 +17,65 @@ export interface PaymentResponse {
   razorpay_signature: string;
 }
 
-export interface PaymentDetails {
-  id: string;
-  booking_id: string;
-  amount: number;
-  currency: string;
-  payment_method: string;
-  status: 'pending' | 'completed' | 'failed';
-  created_at: string;
-  updated_at: string;
-}
-
-// Payment service
 export const paymentService = {
-  // Create a new payment order (REAL Razorpay API)
+  // Create Order (Calls Server)
   async createOrder(bookingId: string, amount: number, currency: string = 'INR'): Promise<PaymentOrder> {
-    try {
-      const orderData = {
-        bookingId,
-        amount,
-        currency
-      };
+    const response = await fetch('/api/create-razorpay-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bookingId, amount, currency })
+    });
 
-      // Call Vercel serverless function
-      const response = await fetch('/api/create-razorpay-order', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(orderData)
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create payment order');
-      }
-
-      const order = await response.json();
-      return {
-        id: order.id,
-        amount: order.amount,
-        currency: order.currency,
-        receipt: order.receipt,
-        status: order.status,
-        created_at: order.created_at
-      };
-    } catch (error) {
-      console.error('Error creating payment order:', error);
-      throw error;
-    }
+    if (!response.ok) throw new Error('Failed to create payment order');
+    return await response.json();
   },
 
-  // Initialize Razorpay payment
+  // Initialize UI
   async initializePayment(order: PaymentOrder, userDetails: any, onSuccess: (response: PaymentResponse) => void, onFailure: (error: any) => void) {
-    try {
-      const options = {
-        key: RAZORPAY_KEY_ID,
-        amount: order.amount,
-        currency: order.currency,
-        name: 'StrumHouse Studio',
-        description: `Booking Payment - ${order.receipt}`,
-        order_id: order.id,
-        handler: onSuccess,
-        prefill: {
-          name: userDetails.name || '',
-          email: userDetails.email || '',
-          contact: userDetails.phone || ''
-        },
-        theme: {
-          color: '#F59E0B'
-        },
-        modal: {
-          ondismiss: () => {
-            onFailure(new Error('Payment cancelled by user'));
-          }
-        },
-        config: {
-          display: {
-            blocks: {
-              banks: {
-                name: "Pay using UPI",
-                instruments: [
-                  {
-                    method: "upi"
-                  }
-                ]
-              },
-              cards: {
-                name: "Pay using Cards",
-                instruments: [
-                  {
-                    method: "card"
-                  }
-                ]
-              }
-            },
-            sequence: ["block.banks", "block.cards"],
-            preferences: {
-              show_default_blocks: false
-            }
-          }
-        }
-      };
-
-      // Check if Razorpay is already loaded
-      if (typeof window !== 'undefined' && (window as any).Razorpay) {
-        // @ts-ignore
-        const rzp = new window.Razorpay(options);
-        rzp.open();
-      } else {
-        // Load Razorpay script dynamically
-        const script = document.createElement('script');
-        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-        script.async = true;
-        script.onload = () => {
-          // @ts-ignore
-          const rzp = new window.Razorpay(options);
-          rzp.open();
-        };
-        script.onerror = () => {
-          onFailure(new Error('Failed to load payment gateway'));
-        };
-        document.body.appendChild(script);
+    const options = {
+      key: RAZORPAY_KEY_ID,
+      amount: order.amount,
+      currency: order.currency,
+      name: 'StrumHouse Studio',
+      description: `Booking Payment - ${order.receipt}`,
+      order_id: order.id,
+      handler: onSuccess,
+      prefill: {
+        name: userDetails.name || '',
+        email: userDetails.email || '',
+        contact: userDetails.phone || ''
+      },
+      theme: { color: '#F59E0B' },
+      modal: {
+        ondismiss: () => onFailure(new Error('Payment cancelled by user'))
       }
+    };
 
-    } catch (error) {
-      console.error('Error initializing payment:', error);
-      onFailure(error);
+    if (typeof window !== 'undefined' && (window as any).Razorpay) {
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+    } else {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => {
+        const rzp = new (window as any).Razorpay(options);
+        rzp.open();
+      };
+      script.onerror = () => onFailure(new Error('Failed to load payment gateway'));
+      document.body.appendChild(script);
     }
   },
 
-  // Verify payment signature via backend
+  // Verify Payment (Calls Server)
   async verifyPayment(paymentResponse: PaymentResponse): Promise<boolean> {
     try {
-      // Call backend verification endpoint
       const response = await fetch('/api/verify-payment', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          razorpay_order_id: paymentResponse.razorpay_order_id,
-          razorpay_payment_id: paymentResponse.razorpay_payment_id,
-          razorpay_signature: paymentResponse.razorpay_signature
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(paymentResponse)
       });
-
-      if (!response.ok) {
-        console.error('Payment verification failed:', response.statusText);
-        return false;
-      }
-
+      if (!response.ok) return false;
       const result = await response.json();
       return result.verified === true;
     } catch (error) {
@@ -178,93 +84,23 @@ export const paymentService = {
     }
   },
 
-
-  // Update booking payment status
-  async updateBookingPaymentStatus(bookingId: string, status: 'pending' | 'paid' | 'failed'): Promise<void> {
-    try {
-      const { error } = await supabase
-        .from('bookings')
-        .update({ 
-          payment_status: status,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', bookingId);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error updating booking payment status:', error);
-      // Don't throw error for development
-    }
-  },
-
-  // Get payment details by booking ID
-  async getPaymentByBookingId(bookingId: string): Promise<PaymentDetails | null> {
-    try {
-      const { data, error } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('booking_id', bookingId)
-        .single();
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error getting payment details:', error);
-      return null;
-    }
-  },
-
-  // Update booking status
-  async updateBookingStatus(bookingId: string, status: 'pending' | 'confirmed' | 'cancelled'): Promise<void> {
-    try {
-      const { error } = await supabase
-        .from('bookings')
-        .update({ 
-          status: status,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', bookingId);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error updating booking status:', error);
-      // Don't throw error for development
-    }
-  },
-
-  // Get booking details by booking ID
+  // Get Booking Details
   async getBookingDetails(bookingId: string): Promise<any | null> {
-    try {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select(`
-          *,
-          services(name),
-          categories(name)
-        `)
-        .eq('id', bookingId)
-        .single();
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(`*, services(name), categories(name)`)
+      .eq('id', bookingId)
+      .single();
 
-      if (error) throw error;
-      
-      // Transform the data to include service name
-      if (data) {
-        return {
-          ...data,
-          service_name: data.services?.name || 'Unknown Service',
-          category_name: data.categories?.name || 'Unknown Category'
-        };
-      }
-      
-      return data;
-    } catch (error) {
-      console.error('Error getting booking details:', error);
-      return null;
-    }
+    if (error) return null;
+    return {
+      ...data,
+      service_name: data.services?.name || 'Unknown Service',
+      category_name: data.categories?.name || 'Unknown Category'
+    };
   }
 };
 
-// Utility function to format amount for display
 export const formatAmount = (amount: number, currency: string = 'INR'): string => {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -273,8 +109,3 @@ export const formatAmount = (amount: number, currency: string = 'INR'): string =
     maximumFractionDigits: 0
   }).format(amount);
 };
-
-// Utility function to format amount for Razorpay (in paise)
-export const formatAmountForRazorpay = (amount: number): number => {
-  return Math.round(amount * 100);
-}; 

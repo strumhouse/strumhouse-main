@@ -23,15 +23,17 @@ export default async function handler(req, res) {
     const receipt = `b_${bookingId}_${Date.now()}`.slice(0, 40);
 
     const orderData = {
-      amount: Math.round(amount * 100), // Convert to paise and ensure integer
+      amount: Math.round(amount * 100), // Convert to paise
       currency: currency || 'INR',
       receipt,
-      notes: { booking_id: bookingId }
+      notes: { 
+        booking_id: bookingId // CRITICAL: Used for recovery in webhook/verify
+      }
     };
 
     console.log('[CreateOrder] Creating Razorpay order for booking:', bookingId);
 
-    // Create Razorpay order
+    // 1. Create Razorpay order
     const auth = Buffer.from(
       `${process.env.VITE_RAZORPAY_KEY_ID}:${process.env.VITE_RAZORPAY_KEY_SECRET}`
     ).toString('base64');
@@ -55,52 +57,26 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log('[CreateOrder] Razorpay order created:', data.id);
-
-    // Ensure a pending payment record exists before returning to client
-    const timestamp = new Date().toISOString();
-    const basePayload = {
-      amount,
-      currency: currency || 'INR',
-      payment_method: 'razorpay',
-      razorpay_order_id: data.id,
-      status: 'pending',
-      updated_at: timestamp
-    };
-
-    const { data: existingPayment, error: fetchError } = await supabase
+    // 2. Create Payment Record IMMEDIATELY (Server as Source of Truth)
+    const { error: dbError } = await supabase
       .from('payments')
-      .select('id')
-      .eq('booking_id', bookingId)
-      .maybeSingle();
+      .upsert({
+        razorpay_order_id: data.id,
+        booking_id: bookingId,
+        amount: amount, // Store in main currency units
+        currency: currency || 'INR',
+        status: 'created', // Initial state
+        created_at: new Date().toISOString()
+      }, { onConflict: 'razorpay_order_id' });
 
-    if (fetchError) {
-      console.error('[CreateOrder] Error fetching existing payment:', fetchError);
-      return res.status(500).json({ error: 'Failed to persist payment record' });
+    if (dbError) {
+      console.error('[CreateOrder] DB Insert Error:', dbError);
+      // We throw to fail the request so the client tries again, 
+      // ensuring we don't have an order without a DB row.
+      return res.status(500).json({ error: 'Failed to initialize payment record' });
     }
 
-    let paymentError;
-    if (existingPayment) {
-      const { error } = await supabase
-        .from('payments')
-        .update(basePayload)
-        .eq('id', existingPayment.id);
-      paymentError = error;
-    } else {
-      const { error } = await supabase
-        .from('payments')
-        .insert({
-          booking_id: bookingId,
-          ...basePayload,
-          created_at: timestamp
-        });
-      paymentError = error;
-    }
-
-    if (paymentError) {
-      console.error('[CreateOrder] Error persisting payment record:', paymentError);
-      return res.status(500).json({ error: 'Failed to persist payment record' });
-    }
+    console.log('[CreateOrder] Success. DB Row created for Order:', data.id);
 
     res.status(200).json({
       id: data.id,
