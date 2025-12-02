@@ -33,7 +33,12 @@ type AdminTab = 'overview' | 'bookings' | 'services' | 'addons' | 'categories' |
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout, loading: authLoading, userProfile, authReady } = useAuth();
-  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  
+  // Initialize activeTab from localStorage or default to 'overview'
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    return (localStorage.getItem('admin_dashboard_tab') as AdminTab) || 'overview';
+  });
+
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalBookings: 0,
@@ -55,8 +60,8 @@ const AdminDashboard: React.FC = () => {
   const [blockedSlots, setBlockedSlots] = useState<any[]>([]);
   const [blockSlotForm, setBlockSlotForm] = useState({
     date: '',
-    start_time: '',
-    end_time: '',
+    start_time: '09:00', // Default start time
+    end_time: '10:00',   // Default end time
     reason: ''
   });
   const [blockSlotLoading, setBlockSlotLoading] = useState(false);
@@ -119,6 +124,11 @@ const AdminDashboard: React.FC = () => {
   });
   const [bookingDateFilter, setBookingDateFilter] = useState<string>('');
 
+  // Persist activeTab to localStorage
+  useEffect(() => {
+    localStorage.setItem('admin_dashboard_tab', activeTab);
+  }, [activeTab]);
+
   useEffect(() => {
     if (!authReady) return;
 
@@ -154,7 +164,7 @@ const AdminDashboard: React.FC = () => {
 
       if (summaryResponse.ok) {
         const text = await summaryResponse.text();
-        console.log('RAW /api/admin/summary response:', text);
+        // console.log('RAW /api/admin/summary response:', text); // Removed detailed logging for cleaner console
         try {
           const parsed = JSON.parse(text);
           if (parsed && typeof parsed === 'object') {
@@ -671,7 +681,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleBlockSlotFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleBlockSlotFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setBlockSlotForm({ ...blockSlotForm, [e.target.name]: e.target.value });
   };
 
@@ -684,15 +694,24 @@ const AdminDashboard: React.FC = () => {
     setBlockSlotError(null);
     setBlockSlotLoading(true);
     try {
+      // Ensure times are in correct format HH:MM:SS for database if needed, but UI uses HH:MM
+      // Assuming database expects HH:MM:SS, let's append :00 if not present.
+      // But the select inputs return "09:00", so just append ":00".
+      // If the values already have seconds, we need to handle that.
+      // Given the select input, it will be HH:MM.
+      
+      const startTimeFormatted = blockSlotForm.start_time.length === 5 ? blockSlotForm.start_time + ':00' : blockSlotForm.start_time;
+      const endTimeFormatted = blockSlotForm.end_time.length === 5 ? blockSlotForm.end_time + ':00' : blockSlotForm.end_time;
+
       await blockedSlotService.create({
         date: blockSlotForm.date,
-        start_time: blockSlotForm.start_time + ':00',
-        end_time: blockSlotForm.end_time + ':00',
+        start_time: startTimeFormatted,
+        end_time: endTimeFormatted,
         reason: blockSlotForm.reason,
         created_by: user ? user.id : ''
       });
       toast.success('Slot blocked successfully');
-      setBlockSlotForm({ date: '', start_time: '', end_time: '', reason: '' });
+      setBlockSlotForm({ date: '', start_time: '09:00', end_time: '10:00', reason: '' });
       fetchBlockedSlots();
     } catch (err) {
       setBlockSlotError('Failed to block slot');
@@ -715,6 +734,18 @@ const AdminDashboard: React.FC = () => {
       setBlockSlotLoading(false);
     }
   };
+
+  // Helper to generate time options for select dropdown
+  const generateTimeOptions = () => {
+    const options = [];
+    for (let i = 0; i < 24; i++) {
+      const hour = i.toString().padStart(2, '0');
+      options.push(`${hour}:00`);
+    }
+    return options;
+  };
+
+  const timeOptions = generateTimeOptions();
 
   if (authLoading || loading) {
     return (
@@ -930,6 +961,7 @@ const AdminDashboard: React.FC = () => {
                               <div>
                                 <div className="text-sm font-medium text-white">{booking.customer_name}</div>
                                 <div className="text-sm text-gray-400">{booking.customer_email}</div>
+                                <div className="text-sm text-gray-400">{booking.customer_phone || 'N/A'}</div>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -1350,32 +1382,88 @@ const AdminDashboard: React.FC = () => {
                 <h2 className="text-2xl font-bold text-white">Blocked Time Slots Management</h2>
               </div>
               
-              {/* Block New Slot Form */}
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h3 className="text-xl font-bold text-white mb-4">Block New Time Slot</h3>
-                <form onSubmit={handleBlockSlotSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              {/* Block New Slot Form - Encased in a distinct boundary */}
+              <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                <h3 className="text-xl font-bold text-white mb-6 border-b border-gray-700 pb-2">Block New Time Slot</h3>
+                <form onSubmit={handleBlockSlotSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div>
-                    <label className="block text-gray-300 mb-1">Date</label>
-                    <input type="date" name="date" value={blockSlotForm.date} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" required />
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Date</label>
+                    <input 
+                      type="date" 
+                      name="date" 
+                      value={blockSlotForm.date} 
+                      onChange={handleBlockSlotFormChange} 
+                      className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all" 
+                      required 
+                    />
                   </div>
                   <div>
-                    <label className="block text-gray-300 mb-1">Start Time</label>
-                    <input type="time" name="start_time" value={blockSlotForm.start_time} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" required />
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Start Time</label>
+                    <div className="relative">
+                      <select 
+                        name="start_time" 
+                        value={blockSlotForm.start_time} 
+                        onChange={handleBlockSlotFormChange as any} 
+                        className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2.5 appearance-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all"
+                      >
+                        {timeOptions.map(time => (
+                          <option key={time} value={time}>{time}</option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
+                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                      </div>
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-gray-300 mb-1">End Time</label>
-                    <input type="time" name="end_time" value={blockSlotForm.end_time} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" required />
+                    <label className="block text-sm font-medium text-gray-400 mb-1">End Time</label>
+                    <div className="relative">
+                      <select 
+                        name="end_time" 
+                        value={blockSlotForm.end_time} 
+                        onChange={handleBlockSlotFormChange as any} 
+                        className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2.5 appearance-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all"
+                      >
+                        {timeOptions.map(time => (
+                          <option key={time} value={time}>{time}</option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
+                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                      </div>
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-gray-300 mb-1">Reason (optional)</label>
-                    <input type="text" name="reason" value={blockSlotForm.reason} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" />
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Reason (optional)</label>
+                    <input 
+                      type="text" 
+                      name="reason" 
+                      value={blockSlotForm.reason} 
+                      onChange={handleBlockSlotFormChange} 
+                      placeholder="e.g. Maintenance"
+                      className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all" 
+                    />
                   </div>
-                  <div className="md:col-span-4">
-                    <button type="submit" className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-6 py-2 rounded-lg mt-2" disabled={blockSlotLoading}>
-                      {blockSlotLoading ? 'Blocking...' : 'Block Slot'}
+                  <div className="md:col-span-2 lg:col-span-4 flex justify-end mt-4">
+                    <button 
+                      type="submit" 
+                      className="bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-bold px-8 py-3 rounded-lg shadow-lg hover:shadow-yellow-500/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0" 
+                      disabled={blockSlotLoading}
+                    >
+                      {blockSlotLoading ? (
+                        <span className="flex items-center">
+                          <LoadingSpinner size="sm" className="mr-2" />
+                          Blocking...
+                        </span>
+                      ) : (
+                        <span className="flex items-center">
+                          <Shield className="w-5 h-5 mr-2" />
+                          Block Slot
+                        </span>
+                      )}
                     </button>
                   </div>
-                  {blockSlotError && <div className="md:col-span-4 text-red-400 mt-2">{blockSlotError}</div>}
+                  {blockSlotError && <div className="md:col-span-2 lg:col-span-4 text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg p-3 mt-2">{blockSlotError}</div>}
                 </form>
               </div>
 
@@ -1442,4 +1530,4 @@ const AdminDashboard: React.FC = () => {
   );
 };
 
-export default AdminDashboard; 
+export default AdminDashboard;
