@@ -1382,40 +1382,88 @@ const AdminDashboard: React.FC = () => {
                 <h2 className="text-2xl font-bold text-white">Blocked Time Slots Management</h2>
               </div>
               
-              {/* Block New Slot Form */}
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h3 className="text-xl font-bold text-white mb-4">Block New Time Slot</h3>
-                <form onSubmit={handleBlockSlotSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              {/* Block New Slot Form - Encased in a distinct boundary */}
+              <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                <h3 className="text-xl font-bold text-white mb-6 border-b border-gray-700 pb-2">Block New Time Slot</h3>
+                <form onSubmit={handleBlockSlotSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div>
-                    <label className="block text-gray-300 mb-1">Date</label>
-                    <input type="date" name="date" value={blockSlotForm.date} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" required />
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Date</label>
+                    <input 
+                      type="date" 
+                      name="date" 
+                      value={blockSlotForm.date} 
+                      onChange={handleBlockSlotFormChange} 
+                      className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all" 
+                      required 
+                    />
                   </div>
                   <div>
-                    <label className="block text-gray-300 mb-1">Start Time</label>
-                    <select name="start_time" value={blockSlotForm.start_time} onChange={handleBlockSlotFormChange as any} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2">
-                      {timeOptions.map(time => (
-                        <option key={time} value={time}>{time}</option>
-                      ))}
-                    </select>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Start Time</label>
+                    <div className="relative">
+                      <select 
+                        name="start_time" 
+                        value={blockSlotForm.start_time} 
+                        onChange={handleBlockSlotFormChange as any} 
+                        className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2.5 appearance-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all"
+                      >
+                        {timeOptions.map(time => (
+                          <option key={time} value={time}>{time}</option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
+                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                      </div>
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-gray-300 mb-1">End Time</label>
-                    <select name="end_time" value={blockSlotForm.end_time} onChange={handleBlockSlotFormChange as any} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2">
-                      {timeOptions.map(time => (
-                        <option key={time} value={time}>{time}</option>
-                      ))}
-                    </select>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">End Time</label>
+                    <div className="relative">
+                      <select 
+                        name="end_time" 
+                        value={blockSlotForm.end_time} 
+                        onChange={handleBlockSlotFormChange as any} 
+                        className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2.5 appearance-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all"
+                      >
+                        {timeOptions.map(time => (
+                          <option key={time} value={time}>{time}</option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
+                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                      </div>
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-gray-300 mb-1">Reason (optional)</label>
-                    <input type="text" name="reason" value={blockSlotForm.reason} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" />
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Reason (optional)</label>
+                    <input 
+                      type="text" 
+                      name="reason" 
+                      value={blockSlotForm.reason} 
+                      onChange={handleBlockSlotFormChange} 
+                      placeholder="e.g. Maintenance"
+                      className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all" 
+                    />
                   </div>
-                  <div className="md:col-span-4">
-                    <button type="submit" className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-6 py-2 rounded-lg mt-2" disabled={blockSlotLoading}>
-                      {blockSlotLoading ? 'Blocking...' : 'Block Slot'}
+                  <div className="md:col-span-2 lg:col-span-4 flex justify-end mt-4">
+                    <button 
+                      type="submit" 
+                      className="bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-bold px-8 py-3 rounded-lg shadow-lg hover:shadow-yellow-500/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0" 
+                      disabled={blockSlotLoading}
+                    >
+                      {blockSlotLoading ? (
+                        <span className="flex items-center">
+                          <LoadingSpinner size="sm" className="mr-2" />
+                          Blocking...
+                        </span>
+                      ) : (
+                        <span className="flex items-center">
+                          <Shield className="w-5 h-5 mr-2" />
+                          Block Slot
+                        </span>
+                      )}
                     </button>
                   </div>
-                  {blockSlotError && <div className="md:col-span-4 text-red-400 mt-2">{blockSlotError}</div>}
+                  {blockSlotError && <div className="md:col-span-2 lg:col-span-4 text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg p-3 mt-2">{blockSlotError}</div>}
                 </form>
               </div>
 
