@@ -48,18 +48,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     let mounted = true;
 
-    // Set up auth state change listenerHI
+    // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setLoading(true);
+      // FIX: Only show loading screen if it's an initial load or explicit sign in/out.
+      // Ignore 'TOKEN_REFRESHED' or 'SIGNED_IN' if we already have the user, 
+      // to prevent UI flashing on tab switches.
+      const shouldShowLoader = event === 'INITIAL_SESSION' || event === 'SIGNED_OUT';
+      
+      if (shouldShowLoader) {
+        setLoading(true);
+      }
+
       try {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
+          // If we already have the profile and it's just a token refresh, 
+          // we might not strictly need to re-fetch, but doing it silently is safer.
+          // We don't await this if we want to be fast, but keeping it consistent is fine
+          // as long as setLoading is false.
           try {
             await timeoutPromise(fetchUserProfile(session.user.id, true), 5000);
           } catch (profileError) {
             console.error('AuthProvider: Error fetching user profile:', profileError);
-            setUserProfile(null);
+            if (shouldShowLoader) setUserProfile(null);
           }
         } else {
           setUserProfile(null);
@@ -67,7 +79,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } catch (error) {
         console.error('AuthProvider: Error during auth state change:', error);
       } finally {
-        setLoading(false);
+        if (shouldShowLoader) {
+          setLoading(false);
+        }
       }
     });
 
@@ -75,6 +89,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (mounted) {
+        // Here we DO want loading true because it's the very first app boot
         setLoading(true);
         setSession(session);
         setUser(session?.user ?? null);
@@ -195,13 +210,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
-  // --- NEW FUNCTION: Reset Password ---
   const resetPassword = useCallback(async (email: string): Promise<boolean> => {
     try {
       setLoading(true);
-      // Dynamic redirect ensures it works on localhost and production
       const redirectTo = `${window.location.origin}/update-password`;
-      
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectTo,
       });
@@ -210,7 +222,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         toast.error(error.message);
         return false;
       }
-      
       toast.success('Password reset link sent to your email!');
       return true;
     } catch (error) {
@@ -222,7 +233,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
-  // --- NEW FUNCTION: Update Password ---
   const updatePassword = useCallback(async (password: string): Promise<boolean> => {
     try {
       setLoading(true);
@@ -232,7 +242,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         toast.error(error.message);
         return false;
       }
-
       toast.success('Password updated successfully!');
       return true;
     } catch (error) {
@@ -252,7 +261,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUserProfile(null);
       const { error } = await supabase.auth.signOut();
       if (error) {
-        throw error;
+        console.warn('Supabase signOut error during logout (ignored):', error);
       }
       try {
         localStorage.clear();
@@ -278,8 +287,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     signup,
     logout,
-    resetPassword, // Added here
-    updatePassword, // Added here
+    resetPassword,
+    updatePassword,
     loading,
   }), [user, session, userProfile, authReady, login, signup, logout, resetPassword, updatePassword, loading]);
 

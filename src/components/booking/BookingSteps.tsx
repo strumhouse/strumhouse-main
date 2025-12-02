@@ -1,44 +1,77 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import CategorySelector from './CategorySelector';
 import SubServiceSelector from './SubServiceSelector';
 import AddOnSelector from './AddOnSelector';
 import DateTimeSelector from './DateTimeSelector';
 import CustomerDetails from './CustomerDetails';
 import BookingSummary from './BookingSummary';
-import { useNavigate } from 'react-router-dom';
 
 interface BookingStepsProps {
   onComplete?: (bookingId: string) => void;
 }
 
+// Initial state constant
+const INITIAL_DATA = {
+  categoryId: '',
+  serviceId: '',
+  selectedDate: null as Date | null,
+  selectedSlots: [] as { startTime: string; endTime: string }[],
+  selectedAddOns: {} as { [key: string]: number },
+  customerDetails: {
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    specialRequirements: '',
+    attendees: 1
+  }
+};
+
 const BookingSteps: React.FC<BookingStepsProps> = ({ onComplete }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [currentStep, setCurrentStep] = useState(1);
-  const [bookingData, setBookingData] = useState({
-    categoryId: '',
-    serviceId: '',
-    selectedDate: null as Date | null,
-    selectedSlots: [] as { startTime: string; endTime: string }[],
-    selectedAddOns: {} as { [key: string]: number },
-    customerDetails: {
-      name: '',
-      email: '',
-      phone: '',
-      address: '',
-      specialRequirements: '',
-      attendees: 1
+
+  // 1. Initialize State from SessionStorage (Lazy Initialization)
+  const [currentStep, setCurrentStep] = useState(() => {
+    try {
+      const savedStep = sessionStorage.getItem('booking_step');
+      return savedStep ? parseInt(savedStep) : 1;
+    } catch {
+      return 1;
     }
   });
+
+  const [bookingData, setBookingData] = useState(() => {
+    try {
+      const savedData = sessionStorage.getItem('booking_data');
+      if (savedData) {
+        const parsed = JSON.parse(savedData);
+        // Fix Date object (JSON stores dates as strings)
+        if (parsed.selectedDate) {
+          parsed.selectedDate = new Date(parsed.selectedDate);
+        }
+        return parsed;
+      }
+      return INITIAL_DATA;
+    } catch {
+      return INITIAL_DATA;
+    }
+  });
+
+  // 2. Persist State to SessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('booking_step', currentStep.toString());
+    sessionStorage.setItem('booking_data', JSON.stringify(bookingData));
+  }, [currentStep, bookingData]);
 
   // Handle pre-selected service from Services page
   useEffect(() => {
     if (location.state?.selectedService && location.state?.selectedCategory) {
       const { selectedService, selectedCategory } = location.state;
-      setBookingData(prev => ({
+      setBookingData((prev: typeof INITIAL_DATA) => ({
         ...prev,
         categoryId: selectedCategory.id,
         serviceId: selectedService.id
@@ -63,23 +96,24 @@ const BookingSteps: React.FC<BookingStepsProps> = ({ onComplete }) => {
   ];
 
   const handleStepComplete = (step: number, data: Partial<typeof bookingData>) => {
-    setBookingData(prev => ({ ...prev, ...data }));
+    setBookingData((prev: typeof INITIAL_DATA) => ({ ...prev, ...data }));
     setCurrentStep(step + 1);
-    // Scroll to top when moving to next step
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleStepBack = (step: number) => {
     setCurrentStep(step - 1);
-    // Scroll to top when going back to previous step
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleBookingComplete = (bookingId: string) => {
+    // Clear storage on success so next booking starts fresh
+    sessionStorage.removeItem('booking_step');
+    sessionStorage.removeItem('booking_data');
+    
     if (onComplete) {
       onComplete(bookingId);
     } else {
-      // Navigate to success page or dashboard
       navigate(`/booking-success/${bookingId}`);
     }
   };
@@ -91,7 +125,7 @@ const BookingSteps: React.FC<BookingStepsProps> = ({ onComplete }) => {
           <CategorySelector
             selectedCategory={bookingData.categoryId}
             onSelect={(categoryId) => {
-              setBookingData(prev => ({ ...prev, categoryId }));
+              setBookingData((prev: typeof INITIAL_DATA) => ({ ...prev, categoryId }));
             }}
             onNext={() => handleStepComplete(1, {})}
           />
@@ -102,7 +136,7 @@ const BookingSteps: React.FC<BookingStepsProps> = ({ onComplete }) => {
             categoryId={bookingData.categoryId}
             selectedService={bookingData.serviceId}
             onSelect={(serviceId) => {
-              setBookingData(prev => ({ ...prev, serviceId }));
+              setBookingData((prev: typeof INITIAL_DATA) => ({ ...prev, serviceId }));
             }}
             onBack={() => handleStepBack(2)}
             onNext={() => handleStepComplete(2, {})}
@@ -120,7 +154,7 @@ const BookingSteps: React.FC<BookingStepsProps> = ({ onComplete }) => {
               } else {
                 newAddOns[addOnId] = quantity;
               }
-              setBookingData(prev => ({ ...prev, selectedAddOns: newAddOns }));
+              setBookingData((prev: typeof INITIAL_DATA) => ({ ...prev, selectedAddOns: newAddOns }));
             }}
             onBack={() => handleStepBack(3)}
             onNext={() => handleStepComplete(3, {})}
@@ -134,7 +168,7 @@ const BookingSteps: React.FC<BookingStepsProps> = ({ onComplete }) => {
             selectedDate={bookingData.selectedDate}
             selectedSlots={bookingData.selectedSlots}
             onSelect={(date, slots) => {
-              setBookingData(prev => ({
+              setBookingData((prev: typeof INITIAL_DATA) => ({
                 ...prev,
                 selectedDate: date,
                 selectedSlots: slots
@@ -148,7 +182,7 @@ const BookingSteps: React.FC<BookingStepsProps> = ({ onComplete }) => {
         return (
           <CustomerDetails
             customerDetails={bookingData.customerDetails}
-            onUpdate={(details) => setBookingData(prev => ({ ...prev, customerDetails: details }))}
+            onUpdate={(details) => setBookingData((prev: typeof INITIAL_DATA) => ({ ...prev, customerDetails: details }))}
             onBack={() => handleStepBack(5)}
             onNext={() => handleStepComplete(5, {})}
           />
