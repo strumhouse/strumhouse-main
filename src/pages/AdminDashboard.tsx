@@ -33,7 +33,12 @@ type AdminTab = 'overview' | 'bookings' | 'services' | 'addons' | 'categories' |
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout, loading: authLoading, userProfile, authReady } = useAuth();
-  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  
+  // Initialize activeTab from localStorage or default to 'overview'
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    return (localStorage.getItem('admin_dashboard_tab') as AdminTab) || 'overview';
+  });
+
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalBookings: 0,
@@ -55,8 +60,8 @@ const AdminDashboard: React.FC = () => {
   const [blockedSlots, setBlockedSlots] = useState<any[]>([]);
   const [blockSlotForm, setBlockSlotForm] = useState({
     date: '',
-    start_time: '',
-    end_time: '',
+    start_time: '09:00', // Default start time
+    end_time: '10:00',   // Default end time
     reason: ''
   });
   const [blockSlotLoading, setBlockSlotLoading] = useState(false);
@@ -119,6 +124,11 @@ const AdminDashboard: React.FC = () => {
   });
   const [bookingDateFilter, setBookingDateFilter] = useState<string>('');
 
+  // Persist activeTab to localStorage
+  useEffect(() => {
+    localStorage.setItem('admin_dashboard_tab', activeTab);
+  }, [activeTab]);
+
   useEffect(() => {
     if (!authReady) return;
 
@@ -154,7 +164,7 @@ const AdminDashboard: React.FC = () => {
 
       if (summaryResponse.ok) {
         const text = await summaryResponse.text();
-        console.log('RAW /api/admin/summary response:', text);
+        // console.log('RAW /api/admin/summary response:', text); // Removed detailed logging for cleaner console
         try {
           const parsed = JSON.parse(text);
           if (parsed && typeof parsed === 'object') {
@@ -671,7 +681,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleBlockSlotFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleBlockSlotFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setBlockSlotForm({ ...blockSlotForm, [e.target.name]: e.target.value });
   };
 
@@ -684,15 +694,24 @@ const AdminDashboard: React.FC = () => {
     setBlockSlotError(null);
     setBlockSlotLoading(true);
     try {
+      // Ensure times are in correct format HH:MM:SS for database if needed, but UI uses HH:MM
+      // Assuming database expects HH:MM:SS, let's append :00 if not present.
+      // But the select inputs return "09:00", so just append ":00".
+      // If the values already have seconds, we need to handle that.
+      // Given the select input, it will be HH:MM.
+      
+      const startTimeFormatted = blockSlotForm.start_time.length === 5 ? blockSlotForm.start_time + ':00' : blockSlotForm.start_time;
+      const endTimeFormatted = blockSlotForm.end_time.length === 5 ? blockSlotForm.end_time + ':00' : blockSlotForm.end_time;
+
       await blockedSlotService.create({
         date: blockSlotForm.date,
-        start_time: blockSlotForm.start_time + ':00',
-        end_time: blockSlotForm.end_time + ':00',
+        start_time: startTimeFormatted,
+        end_time: endTimeFormatted,
         reason: blockSlotForm.reason,
         created_by: user ? user.id : ''
       });
       toast.success('Slot blocked successfully');
-      setBlockSlotForm({ date: '', start_time: '', end_time: '', reason: '' });
+      setBlockSlotForm({ date: '', start_time: '09:00', end_time: '10:00', reason: '' });
       fetchBlockedSlots();
     } catch (err) {
       setBlockSlotError('Failed to block slot');
@@ -715,6 +734,18 @@ const AdminDashboard: React.FC = () => {
       setBlockSlotLoading(false);
     }
   };
+
+  // Helper to generate time options for select dropdown
+  const generateTimeOptions = () => {
+    const options = [];
+    for (let i = 0; i < 24; i++) {
+      const hour = i.toString().padStart(2, '0');
+      options.push(`${hour}:00`);
+    }
+    return options;
+  };
+
+  const timeOptions = generateTimeOptions();
 
   if (authLoading || loading) {
     return (
@@ -930,6 +961,7 @@ const AdminDashboard: React.FC = () => {
                               <div>
                                 <div className="text-sm font-medium text-white">{booking.customer_name}</div>
                                 <div className="text-sm text-gray-400">{booking.customer_email}</div>
+                                <div className="text-sm text-gray-400">{booking.customer_phone || 'N/A'}</div>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -1360,11 +1392,19 @@ const AdminDashboard: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-gray-300 mb-1">Start Time</label>
-                    <input type="time" name="start_time" value={blockSlotForm.start_time} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" required />
+                    <select name="start_time" value={blockSlotForm.start_time} onChange={handleBlockSlotFormChange as any} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2">
+                      {timeOptions.map(time => (
+                        <option key={time} value={time}>{time}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-gray-300 mb-1">End Time</label>
-                    <input type="time" name="end_time" value={blockSlotForm.end_time} onChange={handleBlockSlotFormChange} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2" required />
+                    <select name="end_time" value={blockSlotForm.end_time} onChange={handleBlockSlotFormChange as any} className="w-full bg-gray-800 text-white rounded-lg px-3 py-2">
+                      {timeOptions.map(time => (
+                        <option key={time} value={time}>{time}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-gray-300 mb-1">Reason (optional)</label>
@@ -1442,4 +1482,4 @@ const AdminDashboard: React.FC = () => {
   );
 };
 
-export default AdminDashboard; 
+export default AdminDashboard;
