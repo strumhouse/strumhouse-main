@@ -37,16 +37,7 @@ class ErrorBoundary extends Component<Props, State> {
           <div className="text-center text-gray-300 max-w-2xl mx-auto px-6">
             <h2 className="text-2xl font-bold mb-4">Something went wrong</h2>
             <p className="mb-6">We encountered an unexpected error. Please try refreshing the page.</p>
-            
-            {/* Temporarily show error in all environments for iOS debugging */}
-            {this.state.error && (
-              <div className="bg-gray-800 rounded-lg p-4 mb-6 text-left">
-                <h3 className="text-lg font-semibold text-red-400 mb-2">Error:</h3>
-                <p className="text-red-300 mb-2 text-sm break-words">{this.state.error.message}</p>
-                <p className="text-gray-400 text-xs break-words whitespace-pre-wrap">{this.state.error.stack}</p>
-              </div>
-            )}
-            
+
             <div className="space-x-4">
               <button
                 onClick={() => window.location.reload()}
