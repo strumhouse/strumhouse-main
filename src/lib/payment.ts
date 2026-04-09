@@ -2,6 +2,29 @@ import { supabase } from './supabase';
 
 const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID;
 
+// Pre-load Razorpay eagerly at module init time.
+// iOS Safari's WKWebView blocks <script> tags injected inside async callbacks
+// (a security restriction). Loading it here — before any user interaction —
+// ensures it is available when the Pay button is tapped.
+let _razorpayLoaded: Promise<void> | null = null;
+function preloadRazorpay(): Promise<void> {
+  if (_razorpayLoaded) return _razorpayLoaded;
+  if (typeof window !== 'undefined' && (window as any).Razorpay) {
+    return (_razorpayLoaded = Promise.resolve());
+  }
+  _razorpayLoaded = new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Razorpay'));
+    document.head.appendChild(script);
+  });
+  return _razorpayLoaded;
+}
+// Fire immediately — runs in background while user fills the booking form
+if (typeof window !== 'undefined') preloadRazorpay().catch(() => {});
+
 export interface PaymentOrder {
   id: string;
   amount: number;
@@ -51,19 +74,13 @@ export const paymentService = {
       }
     };
 
-    if (typeof window !== 'undefined' && (window as any).Razorpay) {
+    try {
+      // Wait for the pre-loaded script (already in flight since app start)
+      await preloadRazorpay();
       const rzp = new (window as any).Razorpay(options);
       rzp.open();
-    } else {
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.async = true;
-      script.onload = () => {
-        const rzp = new (window as any).Razorpay(options);
-        rzp.open();
-      };
-      script.onerror = () => onFailure(new Error('Failed to load payment gateway'));
-      document.body.appendChild(script);
+    } catch (err) {
+      onFailure(new Error('Failed to load payment gateway'));
     }
   },
 

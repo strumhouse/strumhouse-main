@@ -1,10 +1,18 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import legacy from '@vitejs/plugin-legacy';
 
 // https://vitejs.dev/config/
 export default defineConfig({
   base: "/",
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Generates polyfilled legacy bundle for iOS Safari 12+ automatically
+    legacy({
+      targets: ['ios >= 12', 'safari >= 12'],
+      modernPolyfills: true,
+    }),
+  ],
   optimizeDeps: {
     exclude: ['lucide-react'],
   },

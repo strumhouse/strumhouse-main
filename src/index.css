@@ -47,6 +47,22 @@
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
   }
+
+  /* Safari/iOS: backdrop-filter needs the -webkit- prefix.
+     Without this the navbar blur is ignored on iOS and shows as transparent. */
+  [class*="backdrop-blur"] {
+    -webkit-backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
+  }
+
+  /* Safari/iOS: gradient text (bg-clip-text + text-transparent) requires
+     -webkit- prefixes or the text is invisible on iOS/macOS Safari. */
+  .bg-clip-text {
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+  }
+  .text-transparent {
+    -webkit-text-fill-color: transparent;
+  }
 }
 
 @layer components {
