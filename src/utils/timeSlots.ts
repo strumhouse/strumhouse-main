@@ -303,8 +303,11 @@ export const generateTimeSlots = (
         const startTime = `${hour.toString().padStart(2, '0')}:00:00`;
         const endTime = `${(hour + config.slotDuration).toString().padStart(2, '0')}:00:00`;
         
-        // Check if this slot is blocked by advance booking rules
-        const slotDateTime = new Date(`${dateStr}T${startTime}`);
+        // iOS Safari parses 'YYYY-MM-DDTHH:MM:SS' (no timezone) as UTC.
+        // Appending 'local' timezone offset makes it consistent across all browsers.
+        const [y, mo, d] = dateStr.split('-').map(Number);
+        const [hh, mm, ss] = startTime.split(':').map(Number);
+        const slotDateTime = new Date(y, mo - 1, d, hh, mm, ss);
         const bookingCutoffTime = new Date(currentTime.getTime() + config.advanceBookingHours * 60 * 60 * 1000);
         const isBlockedByAdvanceRule = isBefore(slotDateTime, bookingCutoffTime);
         
@@ -373,9 +376,11 @@ export const getAvailableDates = (serviceId: string, daysAhead: number = 30, cat
 };
 
 export const formatTimeSlot = (slot: GeneratedTimeSlot) => {
+  // Use parseISO from date-fns — avoids Safari parsing 'YYYY-MM-DD' as UTC midnight
+  // which shifts it to the previous day in IST timezone.
   return {
     ...slot,
-    formattedDate: format(new Date(slot.date), 'EEEE, MMMM do'),
+    formattedDate: format(parseISO(slot.date), 'EEEE, MMMM do'),
     formattedTime: `${slot.startTime} - ${slot.endTime}`,
     status: slot.isBooked ? 'Booked' : slot.isBlocked ? 'Unavailable' : 'Available'
   };
@@ -385,7 +390,9 @@ export const formatTimeSlot = (slot: GeneratedTimeSlot) => {
 
 export const formatDate = (date: string | Date) => {
   if (!date) return 'N/A';
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  // Use parseISO for strings — new Date('YYYY-MM-DD') parses as UTC on Safari
+  // which shifts date to previous day in IST timezone, causing wrong dates.
+  const dateObj = typeof date === 'string' ? parseISO(date) : date;
   return format(dateObj, 'MMMM d, yyyy');
 };
 
