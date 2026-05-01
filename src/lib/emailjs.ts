@@ -21,6 +21,8 @@ export const emailJSService = {
   async sendBookingNotification(bookingData: BookingEmailData): Promise<void> {
     try {
       const templateParams = {
+        to_email: 'contact.strumhouse@gmail.com',
+        admin_email: 'contact.strumhouse@gmail.com',
         booking_id: bookingData.bookingId,
         customer_name: bookingData.customerName,
         customer_email: bookingData.customerEmail,

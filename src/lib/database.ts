@@ -583,14 +583,23 @@ export const bookingSlotService = {
   },
 
   async getConfirmedSlotsByDateRange(startDate: string, endDate: string) {
-    // Join booking_slots with bookings to get only slots for bookings with status 'confirmed'
-    const { data, error } = await supabase
-      .from('booking_slots')
-      .select('*, bookings(status)')
-      .gte('date', startDate)
-      .lte('date', endDate);
-    if (error) throw error;
-    // Only return slots where bookings.status === 'confirmed'
-    return (data || []).filter(slot => slot.bookings && slot.bookings.status === 'confirmed');
+    try {
+      const response = await fetch(`/api/bookings/slots?startDate=${startDate}&endDate=${endDate}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch confirmed slots');
+      }
+      const data = await response.json();
+      return data.slots || [];
+    } catch (error) {
+      console.error('Error fetching confirmed slots via API:', error);
+      // Fallback to direct supabase query (which works for admins) just in case the API is inaccessible during dev
+      const { data, error: sbError } = await supabase
+        .from('booking_slots')
+        .select('*, bookings(status)')
+        .gte('date', startDate)
+        .lte('date', endDate);
+      if (sbError) throw sbError;
+      return (data || []).filter(slot => slot.bookings && slot.bookings.status === 'confirmed');
+    }
   }
 }; 
